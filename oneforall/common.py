@@ -82,12 +82,12 @@ def user(app):
     return 'ofa-' + app
 
 
-def as_user(app, *args, env=None, capture=False):
+def as_user(app, *args, env=None, capture=False, input=None):
     values = dict(env or {})
     if os.environ.get("TMPDIR") and "TMPDIR" not in values:
         values["TMPDIR"] = os.environ["TMPDIR"]
     return run('runuser', '-u', user(app), '--', 'env', *[f'{k}={v}' for k, v in values.items()],
-               *args, capture=capture)
+               *args, capture=capture, input=input)
 
 
 def app_env(app):
