@@ -108,3 +108,12 @@ Aucun token, mot de passe, clé privée ou dump de données utilisateur n’est 
 - Le canal CablePlan reste fixé par le frontal ; les contrôles de disponibilité restent préfixés.
 - Correction du frontal uniquement : `git pull`, `bootstrap`, `status`, sans réinstaller DocTrad.
 - Validation : 24 tests gestionnaire et parseurs natifs Nginx/PHP-FPM réussis ; recette CSS serveur après application.
+
+## 2026-10-08 — Téléchargement des modèles depuis DocTrad
+
+- Ajout dans DocTrad AllFortOne d'un catalogue de trois modèles locaux et d'un formulaire administrateur.
+- Téléchargement explicite dans un processus isolé des secrets et des documents ; services de traduction inchangés en mode hors ligne.
+- Suivi des octets, contrôle de licence/révision/SHA-256, verrou, reprise et publication atomique.
+- Poids Safetensors uniquement ; aucune suppression ou substitution de modèle existant.
+- 24 tests locaux ciblés réussis (Hub simulé) ; téléchargement réel et traduction à valider sur le serveur.
+- Installation : `sudo bash install-oneforall.sh update --apps doctrad`, puis Système & modèles → OPUS.
