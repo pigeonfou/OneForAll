@@ -58,6 +58,9 @@ http {
         ~^(POST|PUT|PATCH|DELETE):https://cnctolequotation.DOMAIN(:LANPORT)?$ 0;
     }
 '''.replace('DOMAIN', c['domain'].replace('.', '\\.')).replace('LANPORT', str(c['lan_port']))
+    if c.get('routing_mode') == 'paths':
+        header = header.replace('    map ', '    map ', 1).replace('        default 0;',
+            '        default 0;\n        ~^(POST|PUT|PATCH|DELETE):https://www.' + c['domain'].replace('.', '\\.') + '(:' + str(c['lan_port']) + ')?$ 0;', 1)
     blocks = []
     for public in (False, True):
         listen = f"127.0.0.1:{c['tunnel_port']}" if public else f"{c['lan_ip']}:{c['lan_port']} ssl"
@@ -72,6 +75,10 @@ http {
                 body = f'''root /opt/oneforall/portal; index index.html;
                 location / {{ try_files $uri $uri/ =404; }}
                 location = /status.json {{ alias /var/lib/oneforall/public/status-{'public' if public else 'lan'}.json; add_header Cache-Control "no-store"; }}'''
+                if c.get('routing_mode') == 'paths':
+                    for target in APPS:
+                        allowed = target in installed and (not public or (c['public_enabled'] and target in c['public_apps']))
+                        body += path_locations(target, OPT / 'apps' / target / 'current', public, allowed)
             elif enabled and APPS[app]['kind'] == 'php':
                 body = php_locations(app, OPT / 'apps' / app / 'current')
             elif enabled:
@@ -85,6 +92,8 @@ http {
                     proxy_set_header Forwarded "";
                     proxy_set_header X-CablePlan-Access-Channel {channel};
                     proxy_read_timeout 300s; }}'''
+            if app == 'portal' and not public:
+                host += ' ' + c['lan_ip']
             limit = '8m' if app == 'cableplan' else '0'
             blocks.append(f'''server {{ listen {listen}; {tls}
                 server_name {host}; {acl}
@@ -99,3 +108,53 @@ http {
     reject = '        ~^(POST|PUT|PATCH|DELETE): 1;\n'
     text = text.replace(reject, '').replace('    }\n', reject + '    }\n', 1)
     return text
+
+
+def path_locations(app, root, public, enabled):
+    prefix = '/' + app
+    if not enabled:
+        return f'location = {prefix} {{ return 403; }} location {prefix}/ {{ return 403; }}'
+    if APPS[app]['kind'] == 'python':
+        upstream = 'http://unix:/run/oneforall-cableplan/app.sock:/' if app == 'cableplan' else f"http://127.0.0.1:{APPS[app]['port']}/"
+        channel = 'tunnel' if public else 'lan'
+        return f'''location = {prefix} {{ return 308 {prefix}/; }}
+        location {prefix}/ {{
+            client_max_body_size {'8m' if app == 'cableplan' else '0'};
+            proxy_pass {upstream};
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Forwarded "";
+            proxy_set_header X-CablePlan-Access-Channel {channel};
+            proxy_redirect off;
+            proxy_read_timeout 300s;
+        }}'''
+    webroot = str(root) + ('/web' if app == 'cnctolequotation' else '')
+    auth = '' if app == 'oddworks' else 'auth_basic "CNCToleQuotation"; auth_basic_user_file /etc/oneforall/cnc.htpasswd;'
+    api = '' if app == 'oddworks' else f'''location ~ ^{prefix}/api/v1/quote(?:\\.php)?$ {{
+        include /etc/nginx/fastcgi_params;
+        fastcgi_pass unix:/run/oneforall-{app}/php.sock;
+        fastcgi_param SCRIPT_FILENAME {root}/api/v1/quote.php;
+        fastcgi_param HTTPS on;
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+    }}
+    location {prefix}/api/ {{ deny all; }}'''
+    return f'''location = {prefix} {{ return 308 {prefix}/; }}
+    location = {prefix}/ {{ rewrite ^ {prefix}/index.php last; }}
+    {api}
+    location ~ ^{prefix}/(?:config|includes|install|tests|scripts|docs|packaging)(?:/|$) {{ deny all; }}
+    location ~ ^{prefix}/.*\\.(?:sqlite|db|sql|md|sh|json|env|yml)$ {{ deny all; }}
+    location ~ ^{prefix}/(?<script_{app}>.+\\.php)$ {{
+        {auth}
+        {'if ($cnc_bad_origin = 1) { return 403; }' if app == 'cnctolequotation' else ''}
+        root {webroot};
+        try_files /$script_{app} =404;
+        include /etc/nginx/fastcgi_params;
+        fastcgi_pass unix:/run/oneforall-{app}/php.sock;
+        fastcgi_param SCRIPT_FILENAME {webroot}/$script_{app};
+        fastcgi_param HTTPS on;
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+        fastcgi_read_timeout 300s;
+    }}
+    location {prefix}/ {{ {auth} alias {webroot}/; }}'''
