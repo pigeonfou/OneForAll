@@ -41,6 +41,8 @@ def read_json(path, default=None):
 
 
 def validate_site(c):
+    if c.get("routing_mode", "subdomains") not in ("subdomains", "paths"):
+        raise ValueError("Mode de routage invalide")
     domain = c.get('domain', '')
     if not re.fullmatch(r'(?=.{1,190}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?', domain) or '.' not in domain or '..' in domain:
         raise ValueError('Domaine DNS invalide')
@@ -81,7 +83,9 @@ def user(app):
 
 
 def as_user(app, *args, env=None, capture=False):
-    values = env or {}
+    values = dict(env or {})
+    if os.environ.get("TMPDIR") and "TMPDIR" not in values:
+        values["TMPDIR"] = os.environ["TMPDIR"]
     return run('runuser', '-u', user(app), '--', 'env', *[f'{k}={v}' for k, v in values.items()],
                *args, capture=capture)
 
