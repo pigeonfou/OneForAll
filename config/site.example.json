@@ -1,0 +1,11 @@
+{
+  "domain": "pigeonfou.com",
+  "lan_ip": "192.168.1.10",
+  "lan_port": 8443,
+  "tunnel_port": 18080,
+  "public_enabled": false,
+  "public_apps": [],
+  "lan_networks": ["192.168.1.0/24"],
+  "certificate": "/etc/oneforall/tls/server.crt",
+  "private_key": "/etc/oneforall/tls/server.key"
+}

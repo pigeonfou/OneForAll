@@ -1,0 +1,35 @@
+name: Deploy selected OneForAll application
+on:
+  workflow_dispatch:
+    inputs:
+      application:
+        type: choice
+        description: Application déjà installée
+        required: true
+        options: [cableplan, doctrad, oddworks, cnctolequotation]
+      sha:
+        type: string
+        description: SHA exact (40 caractères) de la tête AllFortOne approuvée
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: oneforall-server
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, oneforall]
+    environment: production
+    timeout-minutes: 60
+    steps:
+      # Execute only the installed root-owned helper, never checkout a PR on this runner.
+      - name: Deploy approved application commit
+        env:
+          OFA_APPLICATION: ${{ inputs.application }}
+          OFA_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          case "$OFA_APPLICATION" in cableplan|doctrad|oddworks|cnctolequotation) ;; *) exit 1 ;; esac
+          [[ "$OFA_SHA" =~ ^[a-f0-9]{40}$ ]]
+          sudo -n /usr/local/sbin/oneforall-deploy "$OFA_APPLICATION" "$OFA_SHA"

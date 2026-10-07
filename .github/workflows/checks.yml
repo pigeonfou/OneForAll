@@ -1,0 +1,23 @@
+name: OneForAll checks
+on:
+  push:
+    branches: [main, AllFortOne]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native parsers
+        run: sudo apt-get update && sudo apt-get install -y nginx php-fpm
+      - name: Python and shell checks
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q oneforall
+          python3 -m unittest discover -s tests -v
+          bash -n install-oneforall.sh
+          node --check portal/app.js
+      - name: Native nginx and PHP-FPM configuration checks
+        run: python3 tests/verify_native.py

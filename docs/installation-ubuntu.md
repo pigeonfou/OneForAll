@@ -1,0 +1,95 @@
+# Installation Ubuntu 24.04 / 26.04
+
+Cible : serveur x86_64 à jour, sans Docker, accès sudo et suffisamment d’espace pour les applications choisies, leurs modèles et une sauvegarde complète. Ubuntu 26.04 est accepté par le gestionnaire mais reste à valider sur le serveur réel, notamment pour les dépendances Python de DocTrad.
+
+## 1. Préparer le dépôt
+
+Après publication de `pigeonfou/OneForAll` :
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git python3 openssl
+cd ~
+git clone https://github.com/pigeonfou/OneForAll.git
+cd OneForAll
+```
+
+Si le dépôt est privé, utiliser votre accès GitHub déjà configuré, ou une clé de lecture comme expliqué dans `github-cloudflare.md`. Ne pas incorporer un token dans l’URL Git.
+
+## 2. Recenser le serveur
+
+```bash
+sudo bash install-oneforall.sh diagnose
+```
+
+Relever IP LAN, ports occupés, installations historiques et espace disponible. La commande ne modifie pas les applications. Si une installation existe déjà, lire `migration.md` avant la sélection des projets.
+
+## 3. Configuration locale
+
+```bash
+cp config/site.example.json site.json
+nano site.json
+sudo bash install-oneforall.sh configure --config "$PWD/site.json"
+sudo bash install-oneforall.sh bootstrap
+```
+
+Modifier `lan_ip` avec l’adresse privée réelle du serveur et `lan_networks` avec les réseaux de clients autorisés. Vérifier que ces réseaux autorisent aussi le serveur lui-même pour ses contrôles HTTP. Ne pas utiliser `0.0.0.0` ou un réseau public. Conserver `public_enabled: false` lors de la première installation.
+
+Le socle crée un certificat local s’il n’existe pas. Remplacer ce certificat par celui de votre PKI interne pour un accès navigateur sans avertissement ; ne pas désactiver les contrôles TLS en exploitation. Importer la chaîne de confiance dans les navigateurs locaux. Le certificat public Cloudflare est distinct du certificat LAN.
+
+Configurer votre DNS LAN (ou le fichier hosts des postes) pour que les cinq noms `www`, `cableplan`, `doctrad`, `oddworks` et `cnctolequotation` du domaine choisi dirigent vers l’IP privée. Les adresses locales sont de la forme `https://www.pigeonfou.com:8443/`. Vérifier le pare-feu pour ce port depuis les seuls réseaux autorisés ; aucun port backend n’est à ouvrir sur Internet.
+
+## 4. Choisir les applications
+
+```bash
+sudo bash install-oneforall.sh
+```
+
+Le choix 3 accepte une ou plusieurs applications séparées par des virgules. Les applications non choisies ne sont pas installées. Si une instance historique est détectée, le menu demande explicitement de créer une nouvelle instance séparée ; ses données seront importées ensuite avec le choix 13.
+
+Pour une installation non interactive des applications PHP : créer un fichier root privé sans mettre le mot de passe dans l’historique shell.
+
+```bash
+sudo python3 - <<'PY'
+import getpass, os
+password=getpass.getpass('Mot de passe admin (12 caractères minimum) : ')
+if len(password)<12: raise SystemExit('Trop court')
+fd=os.open('/root/oneforall-admin-password',os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+with os.fdopen(fd,'w') as f: f.write(password)
+PY
+sudo bash install-oneforall.sh install --apps oddworks --admin-password-file /root/oneforall-admin-password
+sudo rm /root/oneforall-admin-password
+```
+
+Répéter séparément pour CNC avec un mot de passe distinct. Le compte PHP initial est `admin`. Le mot de passe fourni à OddWorks n’est pas écrit dans ses sorties d’installation.
+
+Pour les applications Python, créer leur compte avec le choix 14, ou :
+
+```bash
+sudo bash install-oneforall.sh create-admin --apps cableplan
+sudo bash install-oneforall.sh create-admin --apps doctrad
+```
+
+## 5. Modèles et moteur géométrique
+
+DocTrad : utiliser le choix 15 pour copier un dossier de modèles préparé conformément à son guide. Le gestionnaire valide les manifestes, licences autorisées et empreintes avant de remplacer les modèles, avec sauvegarde. Il n’importe pas des modèles non vérifiés. L’import historique, choix 13, peut copier les modèles existants.
+
+CNC : installer ou réutiliser un Python OpenCascade sous `/opt`, puis utiliser le choix 16. Le gestionnaire teste l’import `OCC.Core.STEPControl` en tant qu’utilisateur CNC avant de l’enregistrer. L’import historique peut réutiliser le Python Conda existant. Pour un serveur neuf, préparer un environnement Conda dédié avec `pythonocc-core` depuis conda-forge, suivant la documentation officielle du paquet et un installateur vérifié. Ne pas lancer le script historique `install-occ.sh` tel quel sur une instance OneForAll : il modifie les chemins historiques.
+
+Sans OpenCascade, CNC reste signalé comme à configurer et refuse la géométrie fictive de secours. Le modèle de cotation initial du dépôt est un modèle de démonstration : le calibrer sur votre historique avant usage commercial.
+
+## 6. Contrôles avant exposition
+
+```bash
+sudo bash install-oneforall.sh status
+sudo bash install-oneforall.sh logs --apps cableplan,doctrad,oddworks,cnctolequotation
+sudo systemctl status oneforall-nginx --no-pager
+```
+
+Effectuer les parcours détaillés dans `verification.md`. Valider aussi sauvegarde/restauration et redémarrage du serveur.
+
+## 7. Internet et déploiement autonome
+
+Configurer les clés Git de lecture, le runner et le tunnel avec `github-cloudflare.md`. Mettre `public_enabled: true` et choisir `public_apps` explicitement. Dans CablePlan, activer également l’accès distant dans ses paramètres depuis le LAN. Le gestionnaire ne change pas cette option à votre place.
+
+Ne retirer les anciennes routes et chaînes de déploiement qu’après import, recette et décision de bascule. Voir `migration.md`.
