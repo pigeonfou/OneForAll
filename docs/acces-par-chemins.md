@@ -54,3 +54,18 @@ Tests du gestionnaire et tests web locaux Python exécutés ; contrôles natifs 
 PHP-FPM exécutés sur les exécutables extraits Ubuntu 24.04. Ceci ne constitue pas une
 validation serveur Ubuntu 24.04 ou 26.04. La recette sur le serveur et la route Cloudflare
 reste nécessaire : connexions, pages, téléchargements, accès LAN et restrictions publiques.
+
+## Comptes administrateurs
+
+L'identifiant initial est `admin`. Les installations Python effectuées avec l'ancien
+gestionnaire pouvaient ne pas disposer d'un compte. Pour créer ou réinitialiser le
+compte administrateur sans supprimer les données :
+
+```bash
+sudo bash install-oneforall.sh reset-admin --apps oddworks,cableplan,doctrad
+```
+
+Laisser l'identifiant vide pour `admin`, choisir un mot de passe de 12 caractères
+minimum puis le confirmer. Il est saisi de façon masquée et transmis sur stdin.
+Chaque application est sauvegardée avant la modification. Cette commande doit être
+lancée par l'administrateur du serveur, pas par le runner applicatif.
