@@ -99,3 +99,12 @@ Aucun token, mot de passe, clé privée ou dump de données utilisateur n’est 
 - Le secret est transmis sur stdin, jamais dans les arguments des processus ou des fichiers temporaires.
 - CablePlan invalide les sessions du compte réinitialisé ; ses limites de connexion sont réinitialisées.
 - Vérification : 23 tests du gestionnaire réussis ; création et remplacement des mots de passe vérifiés sur bases de test CablePlan et DocTrad.
+
+## 2026-10-08 — Correction CSS DocTrad derrière le préfixe
+
+- Constat navigateur réel : feuille `/doctrad/static/style.css` non chargée, styles par défaut.
+- Reproduction locale StaticFiles : chemin conservé → HTTP 200 ; préfixe retiré → HTTP 404.
+- Nginx transmet désormais le chemin complet aux applications ASGI configurées avec `root_path`.
+- Le canal CablePlan reste fixé par le frontal ; les contrôles de disponibilité restent préfixés.
+- Correction du frontal uniquement : `git pull`, `bootstrap`, `status`, sans réinstaller DocTrad.
+- Validation : 24 tests gestionnaire et parseurs natifs Nginx/PHP-FPM réussis ; recette CSS serveur après application.
