@@ -118,7 +118,8 @@ def path_locations(app, root, public, enabled):
     if not enabled:
         return f'location = {prefix} {{ return 403; }} location {prefix}/ {{ return 403; }}'
     if APPS[app]['kind'] == 'python':
-        upstream = 'http://unix:/run/oneforall-cableplan/app.sock:/' if app == 'cableplan' else f"http://127.0.0.1:{APPS[app]['port']}/"
+        # ASGI root_path needs the full path, including mounted StaticFiles.
+        upstream = 'http://unix:/run/oneforall-cableplan/app.sock' if app == 'cableplan' else f"http://127.0.0.1:{APPS[app]['port']}"
         channel = 'tunnel' if public else 'lan'
         return f'''location = {prefix} {{ return 308 {prefix}/; }}
         location {prefix}/ {{
