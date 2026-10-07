@@ -12,8 +12,8 @@ import sys
 import time
 from pathlib import Path
 
-from common import APPS, BACKUPS, ETC, OPT, ROOT, VAR, app_env, as_user, atomic, read_json, require_root, run, services, state, validate_site, write_json
-from deploy import backup, complete_deployment, configure_php, install, packages, restore
+from common import APPS, BACKUPS, ETC, OPT, ROOT, VAR, app_env, as_user, atomic, read_json, require_root, run, save_env, services, state, validate_site, write_json
+from deploy import backup, complete_deployment, configure_php, install, packages, php_pool, restore
 from migrate import import_legacy
 from render import nginx
 
@@ -30,13 +30,46 @@ def configure(source):
     if not candidate:
         raise ValueError('Configuration absente')
     previous = read_json(ETC / 'site.json')
+    changed = candidate.get('routing_mode', 'subdomains') != (previous or {}).get('routing_mode', 'subdomains')
+    snapshots = {}
+    affected = list(state()) if changed else []
+    if affected:
+        folder = BACKUPS / ('routing-' + str(time.time_ns()))
+        folder.mkdir(parents=True, mode=0o700)
+        for app in affected:
+            for path in (ETC / 'apps' / (app + '.json'), ETC / 'apps' / (app + '.env'), ETC / (app + '-fpm.conf')):
+                if path.exists():
+                    snapshots[path] = path.read_text()
+                    atomic(folder / path.name, snapshots[path], 0o600)
+        if previous:
+            write_json(folder / 'site.json', previous)
     write_json(ETC / 'site.json', candidate)
     try:
+        for app in affected:
+            env = app_env(app)
+            base = '/' + app if candidate.get('routing_mode') == 'paths' else '/'
+            if app == 'oddworks':
+                env['PROJECTFLOW_BASE_PATH'] = base
+            elif app == 'cnctolequotation':
+                env['CNCTOLE_BASE_PATH'] = base
+            elif app in ('cableplan', 'doctrad'):
+                env['CABLEPLAN_BASE_PATH' if app == 'cableplan' else 'DOCTRAD_BASE_PATH'] = base
+            save_env(app, env)
+            if APPS[app]['kind'] == 'php':
+                atomic(ETC / (app + '-fpm.conf'), php_pool(app, VAR / app, env), 0o600)
+                binary = max(Path('/usr/sbin').glob('php-fpm[0-9]*'), key=lambda p: tuple(map(int, re.findall(r'\d+', p.name))))
+                run(binary, '-t', '-y', ETC / (app + '-fpm.conf'))
+        if affected:
+            run('systemctl', 'restart', *[service for app in affected for service in services(app)])
         if Path('/etc/systemd/system/oneforall-nginx.service').exists():
             reload_front()
     except Exception:
         if previous is not None:
             write_json(ETC / 'site.json', previous)
+        for path, content in snapshots.items():
+            atomic(path, content, 0o600)
+        if affected:
+            run('systemctl', 'restart', *[service for app in affected for service in services(app)])
         raise
 
 
@@ -88,7 +121,7 @@ def bootstrap():
         cert.parent.mkdir(parents=True, exist_ok=True)
         key.parent.mkdir(parents=True, exist_ok=True)
         names = ','.join('DNS:' + sub + '.' + c['domain'] for sub in ('www', *APPS))
-        run('openssl', 'req', '-x509', '-newkey', 'rsa:3072', '-nodes', '-days', '365', '-subj', '/CN=www.' + c['domain'], '-addext', 'subjectAltName=' + names, '-keyout', key, '-out', cert)
+        run('openssl', 'req', '-x509', '-newkey', 'rsa:3072', '-nodes', '-days', '365', '-subj', '/CN=www.' + c['domain'], '-addext', 'subjectAltName=' + names + ',IP:' + c['lan_ip'], '-keyout', key, '-out', cert)
         key.chmod(0o600)
     atomic(Path('/etc/systemd/system/oneforall-nginx.service'), '''[Unit]
 Description=OneForAll common frontend
@@ -127,12 +160,14 @@ WantedBy=timers.target
 
 
 def check(app, c, public=False):
-    host = app + '.' + c['domain']
+    paths = c.get('routing_mode') == 'paths'
+    host = ('www' if paths else app) + '.' + c['domain']
+    health_path = ('/' + app if paths else '') + APPS[app]['health']
     if public:
-        url = f"http://127.0.0.1:{c['tunnel_port']}{APPS[app]['health']}"
+        url = f"http://127.0.0.1:{c['tunnel_port']}{health_path}"
         args = ['-H', 'Host: ' + host]
     else:
-        url = f"https://{host}:{c['lan_port']}{APPS[app]['health']}"
+        url = f"https://{host}:{c['lan_port']}{health_path}"
         args = ['--resolve', f"{host}:{c['lan_port']}:{c['lan_ip']}", '--cacert', c['certificate']]
     result = subprocess.run(['curl', '--noproxy', '*', '--silent', '--show-error', '--max-time', '8', *args, '-w', '\n%{http_code}', url], capture_output=True, text=True)
     if result.returncode:
@@ -179,7 +214,7 @@ def status():
             result = check(app, c, public) if enabled and allowed else ('not_installed' if not record else 'restricted')
             suffix = '' if public else ':' + str(c['lan_port'])
             records.append({'id': app, 'name': spec['name'], 'description': spec['description'], 'status': result,
-                            'url': f"https://{app}.{c['domain']}{suffix}/" if enabled and allowed else None})
+                            'url': (f"https://{('www.' + c['domain']) if public else c['lan_ip']}{suffix}/{app}/" if c.get('routing_mode') == 'paths' else f"https://{app}.{c['domain']}{suffix}/") if enabled and allowed else None})
         write_json(VAR / 'public' / ('status-public.json' if public else 'status-lan.json'), {'checked_at': int(time.time()), 'apps': records}, 0o644)
     print(json.dumps({'installed': list(installed), 'checks': records}, ensure_ascii=False))
 
