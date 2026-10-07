@@ -328,7 +328,7 @@ def main(argv=None):
         require_root(); ETC.mkdir(parents=True, exist_ok=True)
         return interactive()
     parser = argparse.ArgumentParser(description='OneForAll — Ubuntu natif')
-    parser.add_argument('command', choices=['diagnose','configure','bootstrap','install','update','status','logs','backup','restore','uninstall','setup-runner','cloudflare','create-admin','render','import-legacy','import-models','configure-geometry'])
+    parser.add_argument('command', choices=['diagnose','configure','bootstrap','install','update','status','logs','backup','restore','uninstall','setup-runner','cloudflare','create-admin','reset-admin','render','import-legacy','import-models','configure-geometry'])
     parser.add_argument('--apps', default='')
     parser.add_argument('--sha')
     parser.add_argument('--config')
@@ -354,7 +354,7 @@ def main(argv=None):
         print('Installations historiques :', {app:Path(spec['legacy']).exists() for app,spec in APPS.items()})
         return
     require_root()
-    if a.command in ('install','update','backup','restore','uninstall','logs','create-admin','import-legacy','import-models','configure-geometry') and not apps:
+    if a.command in ('install','update','backup','restore','uninstall','logs','create-admin','reset-admin','import-legacy','import-models','configure-geometry') and not apps:
         raise ValueError('--apps est requis')
     if a.command in ('restore','create-admin','import-legacy','import-models','configure-geometry') and len(apps) != 1:
         raise ValueError('Sélectionner une seule application')
@@ -441,6 +441,19 @@ def main(argv=None):
         elif a.command == 'cloudflare':
             if not a.token_file: raise ValueError('--token-file requis')
             cloudflare(a.token_file)
+        elif a.command == 'reset-admin':
+            name = input('Identifiant administrateur [admin] : ').strip() or 'admin'
+            password = getpass.getpass('Nouveau mot de passe (12 caractères minimum) : ')
+            if len(password) < 12: raise ValueError('12 caractères minimum requis')
+            if password != getpass.getpass('Confirmer le nouveau mot de passe : '): raise ValueError('Les mots de passe diffèrent')
+            for app in apps:
+                if app not in state(): raise ValueError('Application non installée : ' + app)
+                if app not in ('cableplan','doctrad','oddworks'): raise ValueError('Application non prise en charge')
+            from admin import set_admin
+            for app in apps:
+                backup(app)
+                set_admin(app, name, password)
+                print(app + ' : compte ' + name + ' configuré.')
         elif a.command == 'create-admin':
             app=apps[0]
             if app not in ('cableplan','doctrad'): raise ValueError('Les applications PHP ont un compte admin initial configuré pendant l’installation.')
