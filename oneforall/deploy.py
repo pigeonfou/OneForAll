@@ -374,6 +374,9 @@ def install(app, sha=None, admin_password=None, isolated=False):
         else:
             configure_python(app, release, commit)
         activate(app, release)
+        if not old and admin_password and APPS[app]['kind'] == 'python':
+            from admin import set_admin
+            set_admin(app, 'admin', admin_password)
         run('systemctl', 'daemon-reload')
         run('systemctl', 'enable', '--now', *services(app))
         run('systemctl', 'restart', *services(app))
