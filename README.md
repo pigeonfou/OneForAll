@@ -87,3 +87,8 @@ python3 tests/verify_native.py
 ```
 
 La dernière commande exige Nginx ; elle valide aussi PHP-FPM lorsqu’il est installé. Elle utilise uniquement des fichiers temporaires et ne démarre pas les services système. `.github/workflows/checks.yml` exécute ces contrôles sur un runner GitHub hébergé Ubuntu 24.04.
+
+### Une route publique et accès direct LAN
+
+Voir [l'accès par chemins](docs/acces-par-chemins.md) pour servir toutes les applications
+sous `www.pigeonfou.com/<application>/` et ouvrir le portail directement via l'adresse IP LAN.
