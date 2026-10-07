@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory() as d:
     subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=www.pigeonfou.com','-keyout',str(key),'-out',str(cert)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=True)
     for app in APPS:
         (p/'opt/oneforall/apps'/app/'current').mkdir(parents=True)
-    for case in ('empty','all-local','all-public','selected-public'):
+    for case in ('empty','all-local','all-public','selected-public','paths-all-public','paths-selected-public','paths-local'):
         c=json.loads((ROOT/'config/site.example.json').read_text());c.update(certificate=str(cert),private_key=str(key))
         with socket.socket() as lan_socket, socket.socket() as tunnel_socket:
             lan_socket.bind(('127.0.0.1', 0)); tunnel_socket.bind(('127.0.0.1', 0))
@@ -40,6 +40,10 @@ with tempfile.TemporaryDirectory() as d:
         installed={} if case=='empty' else {app:{} for app in APPS}
         if case.endswith('public'):
             c.update(public_enabled=True,public_apps=list(APPS) if case=='all-public' else ['cableplan'])
+        if case.startswith('paths'):
+            c['routing_mode']='paths'
+        if case=='paths-all-public':
+            c['public_apps']=list(APPS)
         text=nginx(c,installed)
         text=text.replace('listen ' + c['lan_ip'] + ':', 'listen 127.0.0.1:')
         text=text.replace('user www-data;', 'user ' + pwd.getpwuid(os.getuid()).pw_name + ';')
