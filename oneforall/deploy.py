@@ -94,10 +94,13 @@ def prepare_release(app, sha=None):
             packages('postgresql', 'tesseract-ocr', 'tesseract-ocr-eng', 'poppler-utils')
         as_user(app, 'python3', '-m', 'venv', release / '.venv')
         pip = release / '.venv/bin/pip'
+        temp = Path('/var/tmp') / ('oneforall-' + app + '-install')
+        run('install', '-d', '-m', '0700', '-o', user(app), '-g', user(app), temp)
+        pip_env = {'TMPDIR': str(temp)}
         if app == 'doctrad':
             # Existing lock is authoritative. Failure leaves the active version unchanged.
-            as_user(app, pip, 'install', '-r', release / 'requirements.lock')
-        as_user(app, pip, 'install', release)
+            as_user(app, pip, 'install', '-r', release / 'requirements.lock', env=pip_env)
+        as_user(app, pip, 'install', release, env=pip_env)
         as_user(app, release / '.venv/bin/python', '-m', 'pip', 'check')
     else:
         packages('php-fpm', 'php-cli', 'php-sqlite3', 'php-mysql', 'php-curl', 'php-mbstring', 'php-xml', 'php-zip')
@@ -116,6 +119,8 @@ def configure_python(app, release, sha):
     new = not env
     data = VAR / app
     current = OPT / 'apps' / app / 'current'
+    paths = read_json(ETC / 'site.json', {}).get('routing_mode') == 'paths'
+    env['CABLEPLAN_BASE_PATH' if app == 'cableplan' else 'DOCTRAD_BASE_PATH'] = '/' + app if paths else '/'
     if app == 'cableplan':
         env.update(CABLEPLAN_DATA=str(data), CABLEPLAN_COMMIT=sha, CABLEPLAN_PROXY_MODE='nginx', CABLEPLAN_TUNNEL_CONFIGURED='oneforall')
         unit(app, 'web', f'{current}/.venv/bin/cableplan serve --uds /run/oneforall-cableplan/app.sock', 'www-data')
@@ -142,6 +147,7 @@ def configure_python(app, release, sha):
         unit(app, 'web', f'{current}/.venv/bin/uvicorn app.web:app --host 127.0.0.1 --port 18102 --no-access-log')
         unit(app, 'runtime', f'{current}/.venv/bin/uvicorn app.runtime:app --host 127.0.0.1 --port 18112 --no-access-log')
         unit(app, 'worker', f'{current}/.venv/bin/python -m app.worker')
+    env['CABLEPLAN_BASE_PATH' if app == 'cableplan' else 'DOCTRAD_BASE_PATH'] = '/' + app if paths else '/'
     save_env(app, env)
     executable = 'cableplan' if app == 'cableplan' else 'docutranslate'
     as_user(app, release / '.venv/bin' / executable, 'migrate', env=env)
@@ -164,6 +170,7 @@ pm.max_children = 8
 clear_env = yes
 catch_workers_output = yes
 php_admin_value[session.name] = OFA_{app}
+php_admin_value[session.cookie_path] = {env.get("PROJECTFLOW_BASE_PATH", env.get("CNCTOLE_BASE_PATH", "/")) or "/"}
 php_admin_value[session.cookie_httponly] = 1
 php_admin_value[session.cookie_secure] = 1
 php_admin_value[session.cookie_samesite] = Lax
@@ -182,7 +189,7 @@ def configure_php(app, release, admin_password=None):
     env = app_env(app)
     if app == 'oddworks':
         # PHP-FPM rejects empty env values; '/' is normalized to '' by config.php.
-        env.update(PROJECTFLOW_DB_PATH=str(data / 'database.sqlite'), PROJECTFLOW_BASE_PATH='/')
+        env.update(PROJECTFLOW_DB_PATH=str(data / 'database.sqlite'), PROJECTFLOW_BASE_PATH='/oddworks' if read_json(ETC / 'site.json', {}).get('routing_mode') == 'paths' else '/')
         if not (data / 'database.sqlite').exists():
             if not admin_password:
                 raise ValueError('Mot de passe administrateur requis (--admin-password-file).')
@@ -193,6 +200,7 @@ def configure_php(app, release, admin_password=None):
                    'CNCTOLE_DB_PASSWORD': secrets.token_hex(32)}
             save_env(app, env)
         env['CNCTOLE_ALLOW_FALLBACK'] = '0'
+        env['CNCTOLE_BASE_PATH'] = '/cnctolequotation' if read_json(ETC / 'site.json', {}).get('routing_mode') == 'paths' else '/'
         for name in ('models', 'uploads', 'logs', 'tmp', 'history'):
             run('install', '-d', '-m', '0750', '-o', user(app), '-g', user(app), data / name)
         run('systemctl', 'enable', '--now', 'mariadb')
