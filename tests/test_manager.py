@@ -143,3 +143,24 @@ class ConfigurationTests(unittest.TestCase):
             self.assertEqual(values['DATA_ROOT'],'/var/lib/docutranslate')
 
 if __name__=='__main__': unittest.main()
+
+class PathRoutingTests(unittest.TestCase):
+    def test_paths_keep_restrictions_and_lan_ip(self):
+        c=copy.deepcopy(CONFIG);c.update(routing_mode='paths',public_enabled=True,public_apps=['cableplan','oddworks'])
+        text=render.nginx(c,{a:{} for a in common.APPS})
+        public=text[text.index('listen 127.0.0.1:'):]
+        self.assertIn('server_name www.pigeonfou.com 192.168.1.10;',text)
+        self.assertIn('location /cableplan/',public)
+        self.assertIn('location /doctrad/ { return 403; }',public)
+        self.assertIn('X-CablePlan-Access-Channel tunnel;',public)
+        self.assertNotIn('X-CablePlan-Access-Channel lan;',public)
+        self.assertIn('SCRIPT_FILENAME /opt/oneforall/apps/oddworks/current/$script_oddworks;',text)
+        self.assertIn('location ~ ^/oddworks/(?:config|includes|install|tests|scripts|docs|packaging)',text)
+
+    def test_path_health_probe(self):
+        c=copy.deepcopy(CONFIG);c['routing_mode']='paths'
+        result=type('Result',(),{'returncode':0,'stdout':'{}\n200'})()
+        with patch.object(cli.subprocess,'run',return_value=result) as curl:
+            cli.check('oddworks',c,True)
+            self.assertIn('http://127.0.0.1:18080/oddworks/login.php',curl.call_args.args[0])
+            self.assertIn('Host: www.pigeonfou.com',curl.call_args.args[0])
