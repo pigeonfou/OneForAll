@@ -164,3 +164,11 @@ class PathRoutingTests(unittest.TestCase):
             cli.check('oddworks',c,True)
             self.assertIn('http://127.0.0.1:18080/oddworks/login.php',curl.call_args.args[0])
             self.assertIn('Host: www.pigeonfou.com',curl.call_args.args[0])
+
+class StaticPrefixTests(unittest.TestCase):
+    def test_asgi_prefix_is_preserved_for_mounted_static_files(self):
+        c=copy.deepcopy(CONFIG);c.update(routing_mode='paths',public_enabled=True,public_apps=['cableplan','doctrad'])
+        text=render.nginx(c,{a:{} for a in common.APPS})
+        self.assertIn('proxy_pass http://127.0.0.1:18102;',text)
+        self.assertNotIn('proxy_pass http://127.0.0.1:18102/;',text)
+        self.assertNotIn('app.sock:/;',text)
