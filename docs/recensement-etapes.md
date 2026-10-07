@@ -90,3 +90,12 @@ Aucun token, mot de passe, clé privée ou dump de données utilisateur n’est 
 - Sept configurations Nginx et deux PHP-FPM passent les parseurs natifs Ubuntu 24.04.
 - Test HTTP Nginx dans le conteneur impossible : création de socket refusée par l'environnement.
 - Le serveur utilisateur Ubuntu 26.04 doit appliquer `docs/acces-par-chemins.md` puis effectuer la recette.
+
+## 2026-10-08 — Rétablissement des comptes administrateurs
+
+- Diagnostic : l'installateur initial demandait un mot de passe mais ne créait aucun compte Python.
+- Première installation Python : création du compte `admin` avec le mot de passe choisi, après activation de la version.
+- Ajout de `reset-admin --apps oddworks,cableplan,doctrad` : création ou réinitialisation, confirmation masquée, sauvegarde préalable de chaque application.
+- Le secret est transmis sur stdin, jamais dans les arguments des processus ou des fichiers temporaires.
+- CablePlan invalide les sessions du compte réinitialisé ; ses limites de connexion sont réinitialisées.
+- Vérification : 23 tests du gestionnaire réussis ; création et remplacement des mots de passe vérifiés sur bases de test CablePlan et DocTrad.
