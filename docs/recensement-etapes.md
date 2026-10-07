@@ -77,3 +77,16 @@ python3 tests/verify_native.py
 8. Documenter le résultat réel et conserver les sauvegardes des anciennes installations.
 
 Aucun token, mot de passe, clé privée ou dump de données utilisateur n’est présent dans ce recensement.
+
+## 2026-10-08 — Routage par préfixes et accès IP LAN
+
+- Demande utilisateur : réduire les routes Cloudflare et fournir l'accès IP LAN.
+- Ajout du mode `routing_mode=paths`, optionnel pour préserver les configurations existantes.
+- Portail, liens LAN/publics et santé sous les préfixes ; IP LAN admise sur le portail TLS.
+- CablePlan et DocTrad : préfixes natifs pour HTML, JavaScript, redirections et cookies.
+- PHP : chemins de cookies séparés, protections des sources et authentification CNC préservées.
+- Configuration sauvegardée, restauration sur erreur ; gros téléchargements pip dans `/var/tmp`.
+- Validation : 21 tests gestionnaire, 7 tests CablePlan et 10 tests web DocTrad réussis.
+- Sept configurations Nginx et deux PHP-FPM passent les parseurs natifs Ubuntu 24.04.
+- Test HTTP Nginx dans le conteneur impossible : création de socket refusée par l'environnement.
+- Le serveur utilisateur Ubuntu 26.04 doit appliquer `docs/acces-par-chemins.md` puis effectuer la recette.
