@@ -92,6 +92,9 @@ http {
                     proxy_set_header Forwarded "";
                     proxy_set_header X-CablePlan-Access-Channel {channel};
                     proxy_read_timeout 300s; }}'''
+            if app != 'portal' and enabled and c.get('routing_mode') == 'paths':
+                # Existing subdomain frontends also serve prefixed links during migration.
+                body = path_locations(app, OPT / 'apps' / app / 'current', public, True) + body
             if app == 'portal' and not public:
                 host += ' ' + c['lan_ip']
             limit = '8m' if app == 'cableplan' else '0'
