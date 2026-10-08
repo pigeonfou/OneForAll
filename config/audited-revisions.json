@@ -1,22 +1,22 @@
 {
   "CablePlan": {
     "base": "aedf9ad766c2393bfd1433fdfafa9d63d14f8471",
-    "AllFortOne": "c5b26ca42f457b42eed18be54482aff4ee5d03d9",
+    "OneForAll": "c5b26ca42f457b42eed18be54482aff4ee5d03d9",
     "pull_request": "https://github.com/pigeonfou/CablePlan/pull/1"
   },
   "DocTrad": {
     "base": "dddfaec94c88a8d17a7ca20c3e8ae197083ba826",
-    "AllFortOne": "4759f60a50f1e0c4d723eaabf2ed3357c09d8d7c",
+    "OneForAll": "4759f60a50f1e0c4d723eaabf2ed3357c09d8d7c",
     "pull_request": "https://github.com/pigeonfou/DocTrad/pull/1"
   },
   "gestion-projet": {
     "base": "927b2b191e2a7414be194360b9e8e2c371f8f37b",
-    "AllFortOne": "c1ecd4f775ee399d0766dd81ffddfa127c91c8f7",
+    "OneForAll": "c1ecd4f775ee399d0766dd81ffddfa127c91c8f7",
     "pull_request": "https://github.com/pigeonfou/gestion-projet/pull/3"
   },
   "CNCToleQuotation": {
     "base": "dec57673af3c6a60ea53d8f9f9c8df785264dcc0",
-    "AllFortOne": "448d3faf083ce4d1fc6b67a55154db5049735622",
+    "OneForAll": "448d3faf083ce4d1fc6b67a55154db5049735622",
     "pull_request": "https://github.com/pigeonfou/CNCToleQuotation/pull/1"
   }
 }
