@@ -75,6 +75,20 @@ http {
                 body = f'''root /opt/oneforall/portal; index index.html;
                 location / {{ try_files $uri $uri/ =404; }}
                 location = /status.json {{ alias /var/lib/oneforall/public/status-{'public' if public else 'lan'}.json; add_header Cache-Control "no-store"; }}'''
+                if public:
+                    body += ' location = /admin.html { return 403; } location = /admin.js { return 403; } location /api/ { return 403; }'
+                else:
+                    protection = 'auth_basic "OneForAll administration"; auth_basic_user_file /etc/oneforall/portal.htpasswd;'
+                    body += f''' location = /admin.html {{ {protection} try_files $uri =404; add_header Cache-Control "no-store"; }}
+                    location = /admin.js {{ {protection} try_files $uri =404; }}
+                    location = /api/settings {{ {protection}
+                        client_max_body_size 16k;
+                        proxy_pass http://unix:/run/oneforall-portal/admin.sock;
+                        proxy_set_header X-OFA-Admin $remote_user;
+                        proxy_set_header X-OFA-Origin https://$http_host;
+                        proxy_set_header Origin $http_origin;
+                        proxy_read_timeout 15s;
+                    }}'''
                 if c.get('routing_mode') == 'paths':
                     for target in APPS:
                         allowed = target in installed and (not public or (c['public_enabled'] and target in c['public_apps']))
