@@ -92,3 +92,7 @@ La dernière commande exige Nginx ; elle valide aussi PHP-FPM lorsqu’il est in
 
 Voir [l'accès par chemins](docs/acces-par-chemins.md) pour servir toutes les applications
 sous `www.pigeonfou.com/<application>/` et ouvrir le portail directement via l'adresse IP LAN.
+
+## Services hébergés sur un autre serveur LAN
+
+Le menu **Paramètres (admin)** de l’accueil LAN configure les liens des quatre applications vers une IP privée, avec port et chemin. Administration protégée par un compte dédié ; adresses distantes absentes du portail public. Voir [configuration des services LAN](docs/services-lan.md).
