@@ -114,6 +114,7 @@ def bootstrap():
         run('chown', '-R', 'root:root', target)
         run('chmod', '-R', 'go-w', target)
     shutil.copytree(ROOT / 'portal', OPT / 'portal', dirs_exist_ok=True)
+    setup_portal_service()
     cert, key = Path(c['certificate']), Path(c['private_key'])
     if cert.exists() != key.exists():
         raise ValueError('Paire certificat/clé incomplète ; fichiers existants conservés.')
@@ -157,6 +158,54 @@ WantedBy=timers.target
     reload_front()
     run('systemctl', 'enable', '--now', 'oneforall-nginx', 'oneforall-status.timer')
     status()
+
+
+def setup_portal_service():
+    if subprocess.run(['id', 'ofa-portal'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
+        run('useradd', '--system', '--home-dir', str(VAR / 'portal-admin'), '--shell', '/usr/sbin/nologin', 'ofa-portal')
+    run('install', '-d', '-m', '0750', '-o', 'ofa-portal', '-g', 'www-data', VAR / 'portal-admin')
+    credentials = ETC / 'portal.htpasswd'
+    if not credentials.exists():
+        atomic(credentials, '', 0o640)
+    run('chown', 'root:www-data', credentials)
+    run('chmod', '0640', credentials)
+    atomic(Path('/etc/systemd/system/oneforall-portal-admin.service'), '''[Unit]
+Description=OneForAll LAN portal administration
+After=network.target
+[Service]
+User=ofa-portal
+Group=www-data
+ExecStart=/usr/bin/python3 /opt/oneforall/manager/oneforall/portal_settings.py
+Restart=on-failure
+RuntimeDirectory=oneforall-portal
+RuntimeDirectoryMode=0750
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/oneforall/portal-admin
+RestrictAddressFamilies=AF_UNIX
+[Install]
+WantedBy=multi-user.target
+''')
+    run('systemctl', 'daemon-reload')
+    run('systemctl', 'enable', '--now', 'oneforall-portal-admin')
+    run('systemctl', 'restart', 'oneforall-portal-admin')
+
+
+def portal_admin_account():
+    import getpass
+    password = getpass.getpass('Mot de passe admin du portail (12 caractères minimum) : ')
+    confirmation = getpass.getpass('Confirmer le mot de passe : ')
+    if len(password) < 12 or password != confirmation:
+        raise ValueError('Mot de passe trop court ou confirmation différente.')
+    if not (ETC / 'nginx.conf').exists():
+        raise ValueError('Installer le socle avant de créer le compte du portail.')
+    hashed = run('openssl', 'passwd', '-6', '-stdin', input=password + '\n', capture=True)
+    atomic(ETC / 'portal.htpasswd', 'admin:' + hashed + '\n', 0o640)
+    run('chown', 'root:www-data', ETC / 'portal.htpasswd')
+    print('Compte admin du portail configuré. Ouvrir Paramètres (admin) depuis le LAN.')
 
 
 def check(app, c, public=False):
@@ -205,9 +254,14 @@ def check(app, c, public=False):
 
 def status():
     c = site(); installed = state()
+    from portal_settings import load_services
+    external = load_services()
     for public in (False, True):
         records = []
         for app, spec in APPS.items():
+            if not public and app in external:
+                records.append({'id': app, 'name': spec['name'], 'description': spec['description'], 'status': 'external', 'url': external[app]})
+                continue
             record = installed.get(app)
             enabled = bool(record and record.get('enabled', True))
             allowed = not public or (c['public_enabled'] and app in c['public_apps'])
@@ -215,7 +269,7 @@ def status():
             suffix = '' if public else ':' + str(c['lan_port'])
             records.append({'id': app, 'name': spec['name'], 'description': spec['description'], 'status': result,
                             'url': (f"https://{('www.' + c['domain']) if public else c['lan_ip']}{suffix}/{app}/" if c.get('routing_mode') == 'paths' else f"https://{app}.{c['domain']}{suffix}/") if enabled and allowed else None})
-        write_json(VAR / 'public' / ('status-public.json' if public else 'status-lan.json'), {'checked_at': int(time.time()), 'apps': records}, 0o644)
+        write_json(VAR / 'public' / ('status-public.json' if public else 'status-lan.json'), {'checked_at': int(time.time()), 'apps': records, 'admin_enabled': not public}, 0o644)
     print(json.dumps({'installed': list(installed), 'checks': records}, ensure_ascii=False))
 
 
@@ -277,7 +331,8 @@ def interactive():
 7 Mettre à jour  8 État / journaux  9 Sauvegarder
 10 Restaurer / revenir en arrière  11 Désinstaller (données conservées)  12 Quitter
 13 Importer une installation historique  14 Créer un compte admin Python
-15 Importer des modèles DocTrad  16 Configurer le Python OpenCascade''')
+15 Importer des modèles DocTrad  16 Configurer le Python OpenCascade
+17 Configurer le compte admin du portail''')
         choice = input('Choix : ').strip()
         if choice == '12':
             return
@@ -311,6 +366,8 @@ def interactive():
             args=['create-admin','--apps',input('Application (cableplan ou doctrad) : ')]
         elif choice == '15':
             args=['import-models','--apps','doctrad','--source',input('Dossier local contenant les modèles vérifiés (id/manifest.json) : ')]
+        elif choice == '17':
+            args=['portal-admin']
         elif choice == '16':
             args=['configure-geometry','--apps','cnctolequotation','--python',input('Chemin absolu du Python avec OpenCascade : ')]
         if args:
@@ -328,7 +385,7 @@ def main(argv=None):
         require_root(); ETC.mkdir(parents=True, exist_ok=True)
         return interactive()
     parser = argparse.ArgumentParser(description='OneForAll — Ubuntu natif')
-    parser.add_argument('command', choices=['diagnose','configure','bootstrap','install','update','status','logs','backup','restore','uninstall','setup-runner','cloudflare','create-admin','reset-admin','render','import-legacy','import-models','configure-geometry'])
+    parser.add_argument('command', choices=['diagnose','configure','bootstrap','install','update','status','logs','backup','restore','uninstall','setup-runner','cloudflare','create-admin','reset-admin','render','import-legacy','import-models','configure-geometry','portal-admin'])
     parser.add_argument('--apps', default='')
     parser.add_argument('--sha')
     parser.add_argument('--config')
@@ -369,6 +426,7 @@ def main(argv=None):
             if not a.config: raise ValueError('--config requis')
             configure(a.config)
         elif a.command == 'bootstrap': bootstrap()
+        elif a.command == 'portal-admin': portal_admin_account()
         elif a.command in ('install','update'):
             site()
             if not (ETC / 'nginx.conf').exists(): raise ValueError('Installer le socle avant les applications.')
