@@ -13,7 +13,7 @@ Ne pas ouvrir le port LAN au réseau Internet.
 
 ## Appliquer sur une installation existante
 
-Mettre à jour le gestionnaire depuis `main` et CablePlan/DocTrad depuis `AllFortOne`
+Mettre à jour le gestionnaire depuis `main` et CablePlan/DocTrad depuis `OneForAll`
 avant d'activer ce mode. Les nouvelles versions restent compatibles avec le mode racine.
 Les commandes `update` sauvegardent chaque application et sa base avant le changement.
 
