@@ -20,7 +20,7 @@ Les scripts historiques ne sont pas tous idempotents et peuvent reconfigurer un 
 - Nginx commun dans un service dédié, sans conflit volontaire avec les anciens ports 80/443.
 - Sous-domaines pour conserver les routes absolues des applications et séparer les cookies.
 - Utilisateurs, bases, données, sockets et environnements distincts ; aucune copie complète des applications dans OneForAll.
-- Adaptations uniquement dans les branches `AllFortOne` ; aucune fusion automatique.
+- Adaptations uniquement dans les branches `OneForAll` ; aucune fusion automatique.
 - Conservation du canal tunnel CablePlan et de son option d’accès distant.
 - Protection Basic Auth de l’administration CNC, API Bearer préservée, token démo désactivé et refus de géométrie fictive dans OneForAll.
 - Préparation des versions avant arrêt de l’instance active, sauvegarde avant migration, journal de reprise, restauration explicite code + données.
@@ -34,7 +34,7 @@ Les scripts historiques ne sont pas tous idempotents et peuvent reconfigurer un 
 | Menu et CLI | Socle, sélection, mise à jour, diagnostic, logs, sauvegarde, restauration, désactivation, runner et tunnel |
 | Imports complémentaires | Import historique, modèles locaux vérifiés DocTrad et configuration OpenCascade |
 | Configurations natives | Nginx et pools PHP-FPM contrôlés avec les outils Ubuntu 24.04 |
-| Branches et PR | Quatre branches AllFortOne et quatre PR en brouillon publiées |
+| Branches et PR | Quatre branches OneForAll et quatre PR en brouillon publiées |
 | Contrôles GitHub Actions | Intégration des quatre projets réussie ; tests existants CablePlan/DocTrad réussis |
 | Documentation | Architecture, Ubuntu, migration, Cloudflare/GitHub, sauvegarde et recette |
 | OneForAll GitHub | Dépôt absent ; création non disponible dans le connecteur courant |
@@ -42,7 +42,7 @@ Les scripts historiques ne sont pas tous idempotents et peuvent reconfigurer un 
 
 ## Branches publiées
 
-| Projet | SHA AllFortOne | Pull request |
+| Projet | SHA OneForAll | Pull request |
 |---|---|---|
 | CablePlan | `c5b26ca42f457b42eed18be54482aff4ee5d03d9` | https://github.com/pigeonfou/CablePlan/pull/1 |
 | DocTrad | `4759f60a50f1e0c4d723eaabf2ed3357c09d8d7c` | https://github.com/pigeonfou/DocTrad/pull/1 |
@@ -111,9 +111,16 @@ Aucun token, mot de passe, clé privée ou dump de données utilisateur n’est 
 
 ## 2026-10-08 — Téléchargement des modèles depuis DocTrad
 
-- Ajout dans DocTrad AllFortOne d'un catalogue de trois modèles locaux et d'un formulaire administrateur.
+- Ajout dans DocTrad OneForAll d'un catalogue de trois modèles locaux et d'un formulaire administrateur.
 - Téléchargement explicite dans un processus isolé des secrets et des documents ; services de traduction inchangés en mode hors ligne.
 - Suivi des octets, contrôle de licence/révision/SHA-256, verrou, reprise et publication atomique.
 - Poids Safetensors uniquement ; aucune suppression ou substitution de modèle existant.
 - 24 tests locaux ciblés réussis (Hub simulé) ; téléchargement réel et traduction à valider sur le serveur.
 - Installation : `sudo bash install-oneforall.sh update --apps doctrad`, puis Système & modèles → OPUS.
+
+## 2026-10-08 — Correction du nom des branches
+
+- Création de `OneForAll` depuis la tête actuelle de chaque branche applicative, sans réécriture d’historique.
+- Catalogue, messages du gestionnaire, workflows et documentation utilisent le nom corrigé.
+- Anciennes branches conservées pendant la transition ; développement désormais sur `OneForAll`.
+- Mise à jour du gestionnaire par `git pull` puis `bootstrap` avant le prochain déploiement applicatif.
