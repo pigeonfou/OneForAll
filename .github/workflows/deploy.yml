@@ -9,7 +9,7 @@ on:
         options: [cableplan, doctrad, oddworks, cnctolequotation]
       sha:
         type: string
-        description: SHA exact (40 caractères) de la tête AllFortOne approuvée
+        description: SHA exact (40 caractères) de la tête OneForAll approuvée
         required: true
 permissions:
   contents: read
