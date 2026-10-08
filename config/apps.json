@@ -1,6 +1,6 @@
 {
-  "cableplan": {"name":"CablePlan","repo":"pigeonfou/CablePlan","ref":"AllFortOne","kind":"python","description":"Concevoir vos câbles, relier les connecteurs et exporter les plans.","port":18101,"legacy":"/opt/cableplan","health":"/health","services":["web"]},
-  "doctrad": {"name":"DocTrad","repo":"pigeonfou/DocTrad","ref":"AllFortOne","kind":"python","description":"Traduire vos documents en français avec des modèles locaux.","port":18102,"runtime_port":18112,"legacy":"/opt/docutranslate","health":"/health","services":["runtime","worker","web"]},
-  "oddworks": {"name":"OddWorks","repo":"pigeonfou/gestion-projet","ref":"AllFortOne","kind":"php","description":"Piloter les projets, les décisions, les tâches et les ressources.","legacy":"/var/lib/projectflow","health":"/login.php","services":["web"]},
-  "cnctolequotation": {"name":"CNCToleQuotation","repo":"pigeonfou/CNCToleQuotation","ref":"AllFortOne","kind":"php","description":"Estimer les coûts d’usinage et de tôlerie à partir de vos pièces.","legacy":"/opt/cnctolequotation","health":"/index.php","services":["web"]}
+  "cableplan": {"name":"CablePlan","repo":"pigeonfou/CablePlan","ref":"OneForAll","kind":"python","description":"Concevoir vos câbles, relier les connecteurs et exporter les plans.","port":18101,"legacy":"/opt/cableplan","health":"/health","services":["web"]},
+  "doctrad": {"name":"DocTrad","repo":"pigeonfou/DocTrad","ref":"OneForAll","kind":"python","description":"Traduire vos documents en français avec des modèles locaux.","port":18102,"runtime_port":18112,"legacy":"/opt/docutranslate","health":"/health","services":["runtime","worker","web"]},
+  "oddworks": {"name":"OddWorks","repo":"pigeonfou/gestion-projet","ref":"OneForAll","kind":"php","description":"Piloter les projets, les décisions, les tâches et les ressources.","legacy":"/var/lib/projectflow","health":"/login.php","services":["web"]},
+  "cnctolequotation": {"name":"CNCToleQuotation","repo":"pigeonfou/CNCToleQuotation","ref":"OneForAll","kind":"php","description":"Estimer les coûts d’usinage et de tôlerie à partir de vos pièces.","legacy":"/opt/cnctolequotation","health":"/index.php","services":["web"]}
 }
