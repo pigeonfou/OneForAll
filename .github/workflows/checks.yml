@@ -1,7 +1,7 @@
 name: OneForAll checks
 on:
   push:
-    branches: [main, AllFortOne]
+    branches: [main, OneForAll]
   pull_request:
 permissions:
   contents: read
