@@ -47,7 +47,7 @@ sudo bash install-oneforall.sh update --apps cableplan --sha COMMIT_COMPLET_40_C
 
 Pour les deux applications PHP, fournir un fichier privé contenant le mot de passe administrateur avec `--admin-password-file /chemin/prive`. Le menu le saisit sans affichage et efface son fichier temporaire après l’opération. Choisir des mots de passe distincts en installant les applications séparément.
 
-Les mises à jour acceptent uniquement la tête de la branche `AllFortOne` approuvée. Un verrou système empêche les opérations simultanées. Une sauvegarde précède la migration ; un journal de déploiement conserve la sauvegarde initiale en cas d’interruption. Les services sont arrêtés si le contrôle HTTP de déploiement échoue. La restauration est une opération explicite, documentée dans [sauvegarde et retour arrière](docs/sauvegarde-restauration.md).
+Les mises à jour acceptent uniquement la tête de la branche `OneForAll` approuvée. Un verrou système empêche les opérations simultanées. Une sauvegarde précède la migration ; un journal de déploiement conserve la sauvegarde initiale en cas d’interruption. Les services sont arrêtés si le contrôle HTTP de déploiement échoue. La restauration est une opération explicite, documentée dans [sauvegarde et retour arrière](docs/sauvegarde-restauration.md).
 
 ## Sécurité et accès hors ligne
 
