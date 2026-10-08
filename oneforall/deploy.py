@@ -70,7 +70,7 @@ def prepare_release(app, sha=None):
     run('git', '--git-dir', mirror, 'fetch', '--prune', 'origin', f"+refs/heads/{spec['ref']}:refs/heads/{spec['ref']}")
     head = run('git', '--git-dir', mirror, 'rev-parse', f"refs/heads/{spec['ref']}^{{commit}}", capture=True)
     if sha and (not re.fullmatch('[a-f0-9]{40}', sha) or sha != head):
-        raise ValueError('Le SHA demandé doit être exactement la tête de la branche approuvée AllFortOne.')
+        raise ValueError('Le SHA demandé doit être exactement la tête de la branche approuvée OneForAll.')
     sha = head
     release = OPT / 'apps' / app / 'releases' / sha
     if (release / '.ready').exists():
@@ -86,7 +86,7 @@ def prepare_release(app, sha=None):
     archive.unlink()
     descriptor = read_json(release / 'packaging/oneforall.json')
     if not descriptor or descriptor.get('id') != app or descriptor.get('version') != 1:
-        raise ValueError('Adaptateur OneForAll version 1 absent : utiliser la branche AllFortOne.')
+        raise ValueError('Adaptateur OneForAll version 1 absent : utiliser la branche OneForAll.')
     run('chown', '-R', user(app) + ':' + user(app), release)
     if spec['kind'] == 'python':
         packages('python3-venv', 'build-essential', 'libpq-dev', 'fonts-dejavu-core', 'curl')
