@@ -28,7 +28,7 @@ En cas d’échec, les services restent arrêtés et les anciennes données sont
 
 ## Déploiement interrompu
 
-Le journal `/var/lib/oneforall/pending/<id>.json` retient le SHA visé et la sauvegarde initiale. Relancer la même version reprend la préparation sans remplacer cette sauvegarde par une capture d’une base déjà partiellement migrée. Si un autre commit est désormais en tête de `AllFortOne`, restaurer d’abord le snapshot prévu ou examiner la reprise avec l’administrateur.
+Le journal `/var/lib/oneforall/pending/<id>.json` retient le SHA visé et la sauvegarde initiale. Relancer la même version reprend la préparation sans remplacer cette sauvegarde par une capture d’une base déjà partiellement migrée. Si un autre commit est désormais en tête de `OneForAll`, restaurer d’abord le snapshot prévu ou examiner la reprise avec l’administrateur.
 
 Un contrôle HTTP de déploiement échoué arrête les services de l’application. La restauration demeure explicite pour éviter de remplacer sans examen les données écrites entre-temps. Le portail distingue cet état d’une application disponible.
 
