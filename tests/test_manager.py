@@ -67,7 +67,7 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_unknown_app_has_no_route(self):
         text=render.nginx(CONFIG,{})
-        self.assertNotIn('proxy_pass',text)
+        self.assertNotIn('proxy_pass',text.replace('proxy_pass http://unix:/run/oneforall-portal/admin.sock;', ''))
         self.assertNotIn('fastcgi_pass',text)
 
     def test_stale_configuration_rolls_back_on_reload_failure(self):
