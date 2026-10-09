@@ -92,16 +92,15 @@ def prepare_release(app, sha=None):
         packages('python3-venv', 'build-essential', 'libpq-dev', 'fonts-dejavu-core', 'curl')
         if app == 'doctrad':
             packages('postgresql', 'tesseract-ocr', 'tesseract-ocr-eng', 'poppler-utils')
-        as_user(app, 'python3', '-m', 'venv', release / '.venv')
-        pip = release / '.venv/bin/pip'
         temp = Path('/var/tmp') / ('oneforall-' + app + '-install')
         run('install', '-d', '-m', '0700', '-o', user(app), '-g', user(app), temp)
-        pip_env = {'TMPDIR': str(temp)}
         if app == 'doctrad':
-            # Existing lock is authoritative. Failure leaves the active version unchanged.
-            as_user(app, pip, 'install', '-r', release / 'requirements.lock', env=pip_env)
-        as_user(app, pip, 'install', release, env=pip_env)
-        as_user(app, release / '.venv/bin/python', '-m', 'pip', 'check')
+            from dependencies import prepare_doctrad_environment
+            prepare_doctrad_environment(release, temp)
+        else:
+            as_user(app, 'python3', '-m', 'venv', release / '.venv')
+            as_user(app, release / '.venv/bin/pip', 'install', release, env={'TMPDIR': str(temp)})
+            as_user(app, release / '.venv/bin/python', '-m', 'pip', 'check')
     else:
         packages('php-fpm', 'php-cli', 'php-sqlite3', 'php-mysql', 'php-curl', 'php-mbstring', 'php-xml', 'php-zip')
         if app == 'cnctolequotation':
@@ -144,8 +143,8 @@ def configure_python(app, release, sha):
         exists = run('runuser', '-u', 'postgres', '--', 'psql', '-Atc', "SELECT 1 FROM pg_database WHERE datname='ofa_doctrad'", capture=True)
         if not exists:
             run('runuser', '-u', 'postgres', '--', 'createdb', '-O', 'ofa_doctrad', 'ofa_doctrad')
-        unit(app, 'web', f'{current}/.venv/bin/uvicorn app.web:app --host 127.0.0.1 --port 18102 --no-access-log')
-        unit(app, 'runtime', f'{current}/.venv/bin/uvicorn app.runtime:app --host 127.0.0.1 --port 18112 --no-access-log')
+        unit(app, 'web', f'{current}/.venv/bin/python -m uvicorn app.web:app --host 127.0.0.1 --port 18102 --no-access-log')
+        unit(app, 'runtime', f'{current}/.venv/bin/python -m uvicorn app.runtime:app --host 127.0.0.1 --port 18112 --no-access-log')
         unit(app, 'worker', f'{current}/.venv/bin/python -m app.worker')
     env['CABLEPLAN_BASE_PATH' if app == 'cableplan' else 'DOCTRAD_BASE_PATH'] = '/' + app if paths else '/'
     save_env(app, env)
@@ -270,7 +269,12 @@ def backup(app, restart=True):
     run('systemctl', 'stop', *services(app))
     try:
         with tarfile.open(target / 'data.tar', 'w') as tar:
-            tar.add(VAR / app, arcname=app)
+            def include(member):
+                # Reproducible package caches are not application data.
+                if app == 'doctrad' and (member.name == app + '/.cache' or member.name.startswith(app + '/.cache/')):
+                    return None
+                return member
+            tar.add(VAR / app, arcname=app, filter=include)
         write_json(target / 'record.json', record)
         shutil.copy2(ETC / 'apps' / (app + '.json'), target / 'env.json')
         if app == 'doctrad':
