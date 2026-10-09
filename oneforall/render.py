@@ -60,7 +60,7 @@ http {
 '''.replace('DOMAIN', c['domain'].replace('.', '\\.')).replace('LANPORT', str(c['lan_port']))
     if c.get('routing_mode') == 'paths':
         header = header.replace('    map ', '    map ', 1).replace('        default 0;',
-            '        default 0;\n        ~^(POST|PUT|PATCH|DELETE):https://www.' + c['domain'].replace('.', '\\.') + '(:' + str(c['lan_port']) + ')?$ 0;', 1)
+            '        default 0;\n        ~^(POST|PUT|PATCH|DELETE):https://' + c['lan_ip'].replace('.', '\\.') + ':' + str(c['lan_port']) + '$ 0;\n        ~^(POST|PUT|PATCH|DELETE):https://www.' + c['domain'].replace('.', '\\.') + '(:' + str(c['lan_port']) + ')?$ 0;', 1)
     blocks = []
     for public in (False, True):
         listen = f"127.0.0.1:{c['tunnel_port']}" if public else f"{c['lan_ip']}:{c['lan_port']} ssl"
