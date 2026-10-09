@@ -353,6 +353,12 @@ def pending_deployment(app):
 def complete_deployment(app):
     # Only called once the frontend HTTP check has succeeded.
     (VAR / 'pending' / (app + '.json')).unlink(missing_ok=True)
+    if app == 'doctrad':
+        from retention import prune_doctrad
+        try:
+            prune_doctrad(BACKUPS, VAR / 'pending')
+        except OSError:
+            print('DocTrad : nettoyage différé ; déploiement validé.')
 
 
 def install(app, sha=None, admin_password=None, isolated=False):
@@ -370,6 +376,9 @@ def install(app, sha=None, admin_password=None, isolated=False):
         run('systemctl', 'enable', '--now', *services(app))
         s = state(); s[app]['enabled'] = True; write_json(VAR / 'state.json', s)
         return
+    if app == 'doctrad' and old and not pending:
+        from retention import prune_doctrad
+        prune_doctrad(BACKUPS, VAR / 'pending')
     snap = Path(pending['snapshot']) if pending and pending.get('snapshot') else (backup(app, restart=False) if old and not pending else None)
     write_json(VAR / 'pending' / (app + '.json'), {'sha': commit, 'snapshot': str(snap) if snap else None, 'old': old})
     try:
