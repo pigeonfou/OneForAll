@@ -2,7 +2,7 @@
 
 ## Dépôts et branches
 
-Les applications sont récupérées depuis leur branche `OneForAll`. Le fichier `config/apps.json` est la source commune des dépôts et services. Les changements proposés ne doivent pas être fusionnés automatiquement dans les branches principales.
+Les applications sont récupérées depuis leur branche `main`. Le fichier `config/apps.json` est la source commune des dépôts et services. Les changements proposés ne doivent pas être fusionnés automatiquement dans les branches principales.
 
 Créer `pigeonfou/OneForAll`, idéalement privé puisque les autres applications ne sont pas toutes publiques. Initialiser `main`, publier les fichiers, puis donner accès au connecteur GitHub utilisé pour le travail. Le dépôt contient deux workflows : contrôles sur runner hébergé Ubuntu 24.04 et déploiement manuel sur runner du serveur.
 
@@ -67,13 +67,13 @@ sudo ./svc.sh status
 
 Enregistrer le runner au niveau du **dépôt OneForAll**, pour que les workflows des autres dépôts ne lui soient pas attribués. Les autres runners peuvent rester en place pendant la migration.
 
-Le runner ne reçoit qu’une commande sudo : `/usr/local/sbin/oneforall-deploy APP SHA`. Le helper, installé sous root, valide l’application et le SHA, puis vérifie que ce SHA est la tête de la branche `OneForAll` configurée. Il ne reçoit pas de chemin de script ni de fichier de configuration fourni par le runner. Le workflow ne fait pas de checkout d’une pull request sur le serveur.
+Le runner ne reçoit qu’une commande sudo : `/usr/local/sbin/oneforall-deploy APP SHA`. Le helper, installé sous root, valide l’application et le SHA, puis vérifie que ce SHA est la tête de la branche `main` configurée. Il ne reçoit pas de chemin de script ni de fichier de configuration fourni par le runner. Le workflow ne fait pas de checkout d’une pull request sur le serveur.
 
 Créer l’environnement GitHub `production` avec les restrictions adaptées à vos habitudes d’approbation. Le workflow de déploiement accepte uniquement `main` et doit être déclenché avec un commit dont les contrôles sont réussis et dont les adaptations ont été examinées. Une pull request externe ne déclenche aucun déploiement de production.
 
 ## Déployer une mise à jour
 
-1. Pousser le changement applicatif dans `OneForAll` et vérifier les contrôles de cette branche.
+1. Pousser le changement applicatif dans `main` et vérifier les contrôles de cette branche.
 2. Dans OneForAll → Actions → Deploy selected OneForAll application → Run workflow.
 3. Choisir l’application et le SHA complet de 40 caractères approuvé.
 4. Le helper prépare la version, sauvegarde, migre, redémarre, contrôle HTTP et publie les états du portail.
@@ -134,11 +134,11 @@ Activer également l’autorisation distante dans les paramètres CablePlan depu
 
 Ouvrir ensuite `https://www.pigeonfou.com`, se connecter à chaque application et effectuer la recette. L’existence d’un service systemd ou d’un CNAME ne suffit pas à déclarer la publication fonctionnelle.
 
-## Transition du nom de branche
+## Branches après intégration dans main
 
-Les quatre branches applicatives portent désormais le nom `OneForAll`. Elles ont été créées depuis les têtes des anciennes branches, sans réécrire l’historique. Les anciennes branches sont conservées temporairement pour les gestionnaires déjà installés, mais les nouveaux développements doivent viser `OneForAll`.
+Les adaptations OneForAll sont fusionnées dans `main` des quatre applications. Le catalogue récupère désormais `refs/heads/main`, pour les deux modes d’installation. Les branches `OneForAll` et les anciennes branches sont conservées comme historique ; les nouveaux développements de la version intégrée visent `main`.
 
-Sur un serveur existant, appliquer le catalogue et le helper privilégié avant de lancer un déploiement :
+Avant le prochain déploiement applicatif, mettre à jour le gestionnaire privilégié et son catalogue :
 
 ```bash
 cd ~/OneForAll
@@ -147,4 +147,4 @@ sudo bash install-oneforall.sh bootstrap &&
 sudo bash install-oneforall.sh status
 ```
 
-Cette opération ne réinstalle pas les applications. Les prochaines mises à jour récupèrent `refs/heads/OneForAll`. Les sauvegardes et versions installées restent identifiées par SHA et restent restaurables. Les journaux historiques de commits et les anciennes PR conservent leur nom d’origine.
+Cette opération ne réinstalle pas les applications. Les sauvegardes et versions restent identifiées par SHA et restent restaurables. Un déploiement OneForAll exige le SHA exact de la tête `main`, après contrôles. Les runners historiques ciblent uniquement leurs instances autonomes.

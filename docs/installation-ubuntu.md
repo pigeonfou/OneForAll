@@ -4,7 +4,7 @@ Cible : serveur x86_64 à jour, sans Docker, accès sudo et suffisamment d’esp
 
 ## 1. Préparer le dépôt
 
-Après publication de `pigeonfou/OneForAll` :
+Depuis la branche `main` de `pigeonfou/OneForAll` :
 
 ```bash
 sudo apt-get update
@@ -63,7 +63,7 @@ sudo rm /root/oneforall-admin-password
 
 Répéter séparément pour CNC avec un mot de passe distinct. Le compte PHP initial est `admin`. Le mot de passe fourni à OddWorks n’est pas écrit dans ses sorties d’installation.
 
-Pour les applications Python, créer leur compte avec le choix 14, ou :
+Une première installation par le menu crée aussi le compte Python `admin` avec le mot de passe choisi. Pour créer un autre compte, utiliser le choix 14, ou :
 
 ```bash
 sudo bash install-oneforall.sh create-admin --apps cableplan
@@ -72,7 +72,7 @@ sudo bash install-oneforall.sh create-admin --apps doctrad
 
 ## 5. Modèles et moteur géométrique
 
-DocTrad : utiliser le choix 15 pour copier un dossier de modèles préparé conformément à son guide. Le gestionnaire valide les manifestes, licences autorisées et empreintes avant de remplacer les modèles, avec sauvegarde. Il n’importe pas des modèles non vérifiés. L’import historique, choix 13, peut copier les modèles existants.
+DocTrad : télécharger un modèle depuis Système & modèles après connexion administrateur, ou utiliser le choix 15 pour copier un dossier de modèles préparé conformément à son guide. Le gestionnaire valide les manifestes, révisions et empreintes avant de remplacer les modèles, avec sauvegarde. Il n’importe pas des modèles non vérifiés. L’import historique, choix 13, peut copier les modèles existants.
 
 CNC : installer ou réutiliser un Python OpenCascade sous `/opt`, puis utiliser le choix 16. Le gestionnaire teste l’import `OCC.Core.STEPControl` en tant qu’utilisateur CNC avant de l’enregistrer. L’import historique peut réutiliser le Python Conda existant. Pour un serveur neuf, préparer un environnement Conda dédié avec `pythonocc-core` depuis conda-forge, suivant la documentation officielle du paquet et un installateur vérifié. Ne pas lancer le script historique `install-occ.sh` tel quel sur une instance OneForAll : il modifie les chemins historiques.
 
@@ -93,3 +93,9 @@ Effectuer les parcours détaillés dans `verification.md`. Valider aussi sauvega
 Configurer les clés Git de lecture, le runner et le tunnel avec `github-cloudflare.md`. Mettre `public_enabled: true` et choisir `public_apps` explicitement. Dans CablePlan, activer également l’accès distant dans ses paramètres depuis le LAN. Le gestionnaire ne change pas cette option à votre place.
 
 Ne retirer les anciennes routes et chaînes de déploiement qu’après import, recette et décision de bascule. Voir `migration.md`.
+
+## Accès par chemins et administration du portail
+
+Pour partager une seule route Cloudflare, régler `routing_mode` sur `paths` : les applications sont accessibles sous `/cableplan/`, `/doctrad/`, `/oddworks/` et `/cnctolequotation/`. Voir [accès par chemins](acces-par-chemins.md). Sur le LAN, l’accueil est `https://IP_LAN:8443/` (ou le port configuré).
+
+Le compte du portail est distinct des comptes applicatifs : après bootstrap, lancer `sudo bash install-oneforall.sh portal-admin`. Le menu Paramètres (admin) peut définir les liens vers des services hébergés sur d’autres serveurs LAN. Voir [services LAN](services-lan.md).

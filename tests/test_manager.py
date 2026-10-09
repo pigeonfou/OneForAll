@@ -172,3 +172,21 @@ class StaticPrefixTests(unittest.TestCase):
         self.assertIn('proxy_pass http://127.0.0.1:18102;',text)
         self.assertNotIn('proxy_pass http://127.0.0.1:18102/;',text)
         self.assertNotIn('app.sock:/;',text)
+
+class MainBranchDeploymentTests(unittest.TestCase):
+    def test_current_main_reuses_ready_release(self):
+        with tempfile.TemporaryDirectory() as directory:
+            opt=Path(directory);sha='a'*40
+            (opt/'sources/cableplan.git').mkdir(parents=True)
+            release=opt/'apps/cableplan/releases'/sha;release.mkdir(parents=True)
+            (release/'.ready').write_text(sha)
+            with patch.object(deploy,'OPT',opt),patch.object(deploy,'run',return_value=sha) as run:
+                self.assertEqual(deploy.prepare_release('cableplan',sha),(release,sha))
+                self.assertIn('+refs/heads/main:refs/heads/main',run.call_args_list[0].args)
+
+    def test_outdated_sha_rejected_before_release_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            opt=Path(directory);(opt/'sources/cableplan.git').mkdir(parents=True)
+            with patch.object(deploy,'OPT',opt),patch.object(deploy,'run',return_value='a'*40):
+                with self.assertRaises(ValueError): deploy.prepare_release('cableplan','b'*40)
+            self.assertFalse((opt/'apps').exists())
