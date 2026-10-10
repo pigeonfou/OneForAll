@@ -124,12 +124,14 @@ Dans l’assistant, le choix **4 — installer via SSH** prépare une applicatio
 
 Préparer avant de lancer :
 
-- Un accès SSH par clé depuis le serveur central, avec root ou un compte autorisé à exécuter `sudo -n`. La clé privée SSH reste sur le serveur central. Vérifier l’empreinte SSH du serveur distant lors de la première connexion.
+- Un accès SSH par clé depuis le serveur central, avec root ou un compte autorisé à utiliser `sudo` (avec ou sans mot de passe). La clé privée SSH reste sur le serveur central. Vérifier l’empreinte SSH du serveur distant lors de la première connexion.
 - La clé GitHub de lecture du dépôt sélectionné dans `/etc/oneforall/git/<application>.key`, et les clés d’hôte GitHub vérifiées dans `/root/.ssh/known_hosts`. L’assistant copie cette clé de lecture sur le serveur distant par SSH pour son installation et ses mises à jour.
 - Un accès Internet du serveur distant aux dépôts Ubuntu, GitHub et Python pendant l’installation, puis un accès LAN au port configuré (8443 par défaut). Les plages LAN de la configuration centrale sont reprises.
 
-L’assistant demande l’IP privée, le compte et le port SSH, le chemin de la clé SSH locale et le mot de passe administrateur de l’application. Les secrets sont transmis dans une archive privée via SSH, jamais dans les arguments de commande ; les fichiers temporaires sont supprimés après la tentative. Une installation échouée peut laisser un socle partiellement configuré : examiner ses journaux et reprendre sur ce serveur ; ne pas contourner le refus d’installation existante.
+L’assistant demande l’IP privée, le compte et le port SSH, le chemin de la clé SSH locale, le mot de passe sudo distant (saisie masquée, vide pour sudo sans mot de passe) et le mot de passe administrateur de l’application. Les secrets sont transmis dans une archive privée via SSH, jamais dans les arguments de commande ; les fichiers temporaires sont supprimés après la tentative. Une installation échouée peut laisser un socle partiellement configuré : examiner ses journaux et reprendre sur ce serveur ; ne pas contourner le refus d’installation existante.
 
 Le portail propose une adresse HTTPS LAN avec certificat autosigné, à approuver sur les postes clients. DocTrad nécessite ensuite ses modèles locaux et CNC son Python OpenCascade. Le choix **2 — distant déjà installé** conserve son rôle d’enregistrement d’adresse uniquement.
 
 Validation : tests automatisés des adresses SSH et de l’enregistrement conditionné à la réussite. Aucun déploiement SSH réel sur serveur frais n’a été exécuté dans cet environnement.
+
+Le mot de passe sudo reste uniquement en mémoire et est transmis sur l’entrée standard du processus SSH chiffré ; il n’est écrit ni dans un fichier ni dans les arguments. L’archive est transférée séparément pour que sudo ne consomme pas les données du transfert. L’authentification SSH reste effectuée par clé.
