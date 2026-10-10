@@ -99,3 +99,21 @@ Ne retirer les anciennes routes et chaînes de déploiement qu’après import, 
 Pour partager une seule route Cloudflare, régler `routing_mode` sur `paths` : les applications sont accessibles sous `/cableplan/`, `/doctrad/`, `/oddworks/` et `/cnctolequotation/`. Voir [accès par chemins](acces-par-chemins.md). Sur le LAN, l’accueil est `https://IP_LAN:8443/` (ou le port configuré).
 
 Le compte du portail est distinct des comptes applicatifs : après bootstrap, lancer `sudo bash install-oneforall.sh portal-admin`. Le menu Paramètres (admin) peut définir les liens vers des services hébergés sur d’autres serveurs LAN. Voir [services LAN](services-lan.md).
+
+## Installation guidée : services locaux et distants
+
+Après avoir préparé le fichier réseau selon ce guide, lancer :
+
+```bash
+sudo bash install-oneforall.sh setup
+```
+
+Sur une installation fraîche, le choix 2 du menu lance aussi cet assistant. Le choix 18 permet de le relancer explicitement. La commande `bootstrap` reste réservée à la préparation du socle, sans question sur les applications, pour les procédures automatisées et les mises à jour du gestionnaire.
+
+Pour chaque application (CablePlan, DocTrad, OddWorks, CNCToleQuotation), choisir :
+
+- **Local** : installer l’application sur ce serveur ; une première installation demande et confirme le mot de passe administrateur (12 caractères minimum).
+- **Distant sur le LAN** : saisir son URL complète, par exemple `http://192.168.7.20:8080/doctrad/`. Le portail crée un lien LAN vers cette application. Aucune installation ni migration n’est effectuée sur le serveur distant ; ce lien ne publie pas ce serveur via le tunnel Cloudflare.
+- **Ne pas installer** (choix par défaut) : aucune nouvelle installation ; une instance existante n’est pas désinstallée et son adresse existante est conservée.
+
+Seules les adresses IP privées du LAN sont acceptées pour les services distants. Les URL restent modifiables dans **Paramètres (admin)** depuis le LAN, après configuration du compte administrateur du portail avec le choix 17. Choisir local enlève l’ancien lien distant de cette application. Une installation historique détectée nécessite le choix explicite d’une instance séparée ; l’import des données conserve sa procédure dédiée.
