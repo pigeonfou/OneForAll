@@ -190,3 +190,16 @@ class MainBranchDeploymentTests(unittest.TestCase):
             with patch.object(deploy,'OPT',opt),patch.object(deploy,'run',return_value='a'*40):
                 with self.assertRaises(ValueError): deploy.prepare_release('cableplan','b'*40)
             self.assertFalse((opt/'apps').exists())
+
+class GuidedInstallationTests(unittest.TestCase):
+    def test_local_distant_and_skipped_services(self):
+        with patch('builtins.input', side_effect=['1', '2', 'http://192.168.7.20:8080/doctrad/', '3', '']):
+            local, distant = cli.installation_choices()
+        self.assertEqual(local, ['cableplan'])
+        self.assertEqual(distant, {'doctrad': 'http://192.168.7.20:8080/doctrad/'})
+
+    def test_invalid_remote_address_can_be_corrected(self):
+        with patch('builtins.input', side_effect=['2', 'https://example.com/', '2', 'http://192.168.7.20/', '3', '3', '3']):
+            local, distant = cli.installation_choices()
+        self.assertEqual(local, [])
+        self.assertEqual(distant, {'cableplan': 'http://192.168.7.20/'})
