@@ -2,6 +2,8 @@
 import getpass
 import ipaddress
 import json
+import os
+import shutil
 import re
 import shlex
 import subprocess
@@ -25,15 +27,50 @@ def ssh_target(address, username, port):
     return f'{username}@{ip}', host
 
 
+class PasswordSSH(list):
+    def __init__(self, arguments, password):
+        super().__init__(arguments)
+        self.password = password
+
+    def run(self, command, **kwargs):
+        # A separate inherited pipe supplies SSH authentication; stdin remains
+        # available for sudo or the archive. No secret in argv or environment.
+        read_fd, write_fd = os.pipe()
+        try:
+            os.write(write_fd, (self.password + '\n').encode())
+            os.close(write_fd)
+            write_fd = None
+            return subprocess.run(['sshpass', '-d', str(read_fd), *self, command],
+                                  pass_fds=(read_fd,), **kwargs)
+        finally:
+            os.close(read_fd)
+            if write_fd is not None:
+                os.close(write_fd)
+
+
+def ssh_run(ssh, command, **kwargs):
+    if isinstance(ssh, PasswordSSH):
+        return ssh.run(command, **kwargs)
+    return subprocess.run(ssh + [command], **kwargs)
+
+
 def privileged_command(ssh, script, username, sudo_password=None, **kwargs):
     if username == 'root':
-        return subprocess.run(ssh + ['bash -c ' + shlex.quote(script)], check=True, **kwargs)
+        return ssh_run(ssh, 'bash -c ' + shlex.quote(script), check=True, **kwargs)
     if sudo_password is None:
         command = 'sudo -n bash -c ' + shlex.quote(script)
-        return subprocess.run(ssh + [command], check=True, **kwargs)
+        return ssh_run(ssh, command, check=True, **kwargs)
     # Password occupies stdin only. Drain leftover input for NOPASSWD accounts.
     command = "sudo -k -S -p '' bash -c " + shlex.quote('cat >/dev/null; ' + script)
-    return subprocess.run(ssh + [command], input=(sudo_password + '\n').encode(), check=True, **kwargs)
+    return ssh_run(ssh, command, input=(sudo_password + '\n').encode(), check=True, **kwargs)
+
+
+def application_password(name):
+    password = getpass.getpass(f'Mot de passe admin de {name} [password1234] : ') or 'password1234'
+    confirmation = getpass.getpass('Confirmer le mot de passe [password1234] : ') or 'password1234'
+    if len(password) < 12 or password != confirmation:
+        raise ValueError('Mot de passe invalide ou confirmation différente.')
+    return password
 
 
 def install_remote(app, configuration):
@@ -41,18 +78,26 @@ def install_remote(app, configuration):
     username = input('Compte SSH [ubuntu] : ').strip() or 'ubuntu'
     port = int(input('Port SSH [22] : ').strip() or '22')
     target, host = ssh_target(address, username, port)
-    identity = Path(input('Chemin local absolu de la clé privée SSH du serveur : ').strip())
-    if not identity.is_absolute() or not identity.is_file():
-        raise ValueError('Clé SSH locale introuvable.')
+    if not shutil.which('sshpass'):
+        subprocess.run(['apt-get', 'install', '-y', 'sshpass'], check=True)
+    login_password = getpass.getpass('Mot de passe du compte SSH distant : ')
+    if not login_password or len(login_password.encode()) > 1024 or any(c in login_password for c in ('\n', '\r', '\x00')):
+        raise ValueError('Mot de passe SSH invalide.')
     git_key = ETC / 'git' / (app + '.key')
     known_hosts = Path('/root/.ssh/known_hosts')
     if not git_key.is_file() or not known_hosts.is_file():
         raise ValueError(f'Préparer /etc/oneforall/git/{app}.key et les clés d’hôte GitHub vérifiées avant l’installation distante.')
-    password = getpass.getpass(f'Mot de passe admin de {APPS[app]["name"]} (12 caractères minimum) : ')
-    if len(password) < 12 or password != getpass.getpass('Confirmer le mot de passe : '):
-        raise ValueError('Mot de passe invalide ou confirmation différente.')
-    ssh = ['ssh', '-p', str(port), '-i', str(identity), '-o', 'IdentitiesOnly=yes',
-           '-o', 'StrictHostKeyChecking=ask', '-o', 'ConnectTimeout=15', target]
+    password = application_password(APPS[app]['name'])
+    base = ['ssh', '-p', str(port), '-o', 'PubkeyAuthentication=no',
+            '-o', 'PreferredAuthentications=password,keyboard-interactive',
+            '-o', 'ConnectTimeout=15']
+    # Let OpenSSH display/verify a new host key interactively without sending
+    # credentials. Authentication failure here is expected; the next call logs in.
+    subprocess.run(base + ['-o', 'StrictHostKeyChecking=ask', '-o',
+                          'PasswordAuthentication=no', '-o', 'KbdInteractiveAuthentication=no',
+                          target, 'true'], check=False)
+    ssh = PasswordSSH(base + ['-o', 'StrictHostKeyChecking=yes', target], login_password)
+    login_password = None
     sudo_password = None
     if username != 'root':
         sudo_password = getpass.getpass('Mot de passe sudo du serveur distant (vide si sudo sans mot de passe) : ') or None
@@ -72,7 +117,7 @@ command -v python3 >/dev/null
 command -v tar >/dev/null
 true
 ''')
-    subprocess.run(ssh + ['umask 077; mkdir ' + shlex.quote(stage)], check=True)
+    ssh_run(ssh, 'umask 077; mkdir ' + shlex.quote(stage), check=True)
     try:
         with tempfile.TemporaryDirectory(prefix='ofa-remote-') as directory:
             root = Path(directory)
@@ -94,7 +139,7 @@ true
                 for name in ('site.json', 'admin-password', 'git.key', 'known_hosts'):
                     tar.add(root / name, arcname=name)
             with archive.open('rb') as stream:
-                subprocess.run(ssh + ['umask 077; cat > ' + shlex.quote(stage + '/payload.tar')], stdin=stream, check=True)
+                ssh_run(ssh, 'umask 077; cat > ' + shlex.quote(stage + '/payload.tar'), stdin=stream, check=True)
             command(f'tar -xf {stage}/payload.tar -C {stage}')
             command(f'''set -e
 install -d -m 700 /etc/oneforall/git /root/.ssh
@@ -122,3 +167,4 @@ python3 /opt/oneforall/manager/oneforall/cli.py install --apps {app} --admin-pas
             command('rm -rf -- ' + shlex.quote(stage))
         finally:
             sudo_password = None
+            ssh.password = None
