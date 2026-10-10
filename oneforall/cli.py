@@ -328,11 +328,15 @@ def installation_choices():
     local, distant = [], {}
     for app, spec in APPS.items():
         while True:
-            mode = input(f"{spec['name']} : 1 local, 2 distant sur le LAN, 3 ne pas installer [3] : ").strip() or '3'
+            mode = input(f"{spec['name']} : 1 local, 2 distant déjà installé, 3 ne pas installer, 4 installer via SSH [3] : ").strip() or '3'
             if mode == '1':
                 local.append(app)
                 break
             if mode == '3':
+                break
+            if mode == '4':
+                from remote_install import install_remote
+                distant[app] = install_remote(app, site())
                 break
             if mode == '2':
                 try:
@@ -344,7 +348,7 @@ def installation_choices():
                 except ValueError as exc:
                     print(exc)
             else:
-                print('Choisir 1, 2 ou 3.')
+                print('Choisir 1, 2, 3 ou 4.')
     return local, distant
 
 
@@ -389,7 +393,7 @@ def setup_installation():
         finally:
             temp.unlink(missing_ok=True)
     main(['status'])
-    print('Services distants : liens LAN configurés, aucune installation sur les autres serveurs. Modifier ces adresses dans Paramètres (admin).')
+    print('Services distants : liens LAN configurés ; le choix SSH installe les services, le choix adresse seule référence une installation existante. Modifier ces adresses dans Paramètres (admin).')
 
 
 def interactive():
