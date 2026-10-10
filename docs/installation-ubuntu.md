@@ -2,9 +2,206 @@
 
 Cible : serveur x86_64 à jour, sans Docker, accès sudo et suffisamment d’espace pour les applications choisies, leurs modèles et une sauvegarde complète. Ubuntu 26.04 est accepté par le gestionnaire mais reste à valider sur le serveur réel, notamment pour les dépendances Python de DocTrad.
 
+## 0. Partir d’Ubuntu 26 fraîchement installé
+
+Toutes les commandes ci-dessous s’exécutent sur le **serveur central OneForAll**, connecté avec le compte créé pendant l’installation Ubuntu (par exemple `ubuntu`). Les exemples utilisent `192.168.7.10` pour le serveur, `192.168.7.0/24` pour le LAN et `192.168.7.20` pour un serveur distant : remplacer ces valeurs par celles de votre réseau.
+
+### 0.1 Première connexion et mises à jour
+
+Depuis la console du serveur :
+
+```bash
+whoami
+sudo -v
+cat /etc/os-release
+uname -m
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get install -y git curl ca-certificates openssl openssh-client openssh-server python3 python3-venv nano iproute2 ufw
+sudo systemctl enable --now ssh
+sudo reboot
+```
+
+Attendre le redémarrage, puis se reconnecter à la console ou depuis un autre poste : `ssh ubuntu@IP_DU_SERVEUR`. La procédure cible Ubuntu 26.04 x86_64 (`uname -m` affiche `x86_64`) ; les paquets Python applicatifs sont installés dans des environnements virtuels par OneForAll, jamais avec un pip global.
+
+### 0.2 Adresse réseau stable et espace disque
+
+```bash
+ip -br -4 address
+ip -4 route
+hostname -I
+df -h /
+free -h
+```
+
+Réserver l’adresse du serveur dans le DHCP de votre routeur ; c’est l’option recommandée pour éviter de modifier Netplan pendant une connexion SSH. Relever le masque réel du LAN (ne pas supposer `/24` si le réseau utilise un autre masque). OneForAll doit garder la même IP après redémarrage.
+
+DocTrad peut occuper plusieurs dizaines de Go : environ 6 Go par version Python/CUDA dans l’installation observée, auxquels s’ajoutent modèles et sauvegardes. Prévoir l’espace pour **deux versions et une sauvegarde complète des données**. Une partition de 100 Go peut se remplir rapidement avec plusieurs modèles et des sauvegardes répétées ; surveiller `df -h /` avant chaque mise à jour.
+
+### 0.3 Récupérer OneForAll, y compris si le dépôt est privé
+
+Pour un dépôt accessible publiquement, utiliser le clone HTTPS de l’étape 1. Si GitHub demande un identifiant/mot de passe ou si le dépôt est privé, préparer une clé de lecture du dépôt OneForAll :
+
+```bash
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+test -f ~/.ssh/oneforall-repo.key || ssh-keygen -t ed25519 -N '' -C oneforall-repo -f ~/.ssh/oneforall-repo.key
+cat ~/.ssh/oneforall-repo.key.pub
+```
+
+Dans GitHub, ouvrir **pigeonfou/OneForAll → Settings → Deploy keys → Add deploy key**, coller la clé **publique**, sans cocher l’accès en écriture. Puis :
+
+```bash
+cd ~
+git -c core.sshCommand="ssh -i $HOME/.ssh/oneforall-repo.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=ask" clone --branch main ssh://git@ssh.github.com:443/pigeonfou/OneForAll.git
+cd OneForAll
+```
+
+À la première connexion, vérifier l’empreinte de GitHub avant de saisir **uniquement `yes`**, puis Entrée. Pour ED25519, l’empreinte publiée est `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU` ; la comparer aussi à la [page officielle GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints). Ne pas coller une nouvelle commande à la place de cette réponse. Le mot de passe de votre compte GitHub ne permet pas d’authentifier les opérations Git HTTPS.
+
+Si vous avez déjà cloné le dépôt, faire `cd ~/OneForAll && git pull --ff-only origin main` ; ne pas le cloner par-dessus le dossier existant. Continuer à l’étape 2 après ces préparatifs.
+
+### 0.4 Donner au gestionnaire l’accès aux dépôts applicatifs
+
+À faire **avant** le choix d’installation locale ou SSH pour chaque application sélectionnée, même si le compte Ubuntu peut déjà accéder à GitHub : le gestionnaire travaille en root et utilise ses propres clés.
+
+```bash
+sudo install -d -m 700 /etc/oneforall/git /root/.ssh
+sudo bash -c '
+set -e
+for app in cableplan doctrad oddworks cnctolequotation; do
+  test -f "/etc/oneforall/git/$app.key" || ssh-keygen -t ed25519 -N "" -C "oneforall-$app" -f "/etc/oneforall/git/$app.key"
+  chmod 600 "/etc/oneforall/git/$app.key"
+done
+'
+```
+
+Afficher séparément les clés publiques avec `sudo cat /etc/oneforall/git/cableplan.key.pub`, puis les autres identifiants. Ajouter chaque clé au bon dépôt dans **Settings → Deploy keys**, en lecture seule :
+
+| Clé | Dépôt GitHub |
+| --- | --- |
+| `cableplan.key.pub` | `pigeonfou/CablePlan` |
+| `doctrad.key.pub` | `pigeonfou/DocTrad` |
+| `oddworks.key.pub` | `pigeonfou/gestion-projet` |
+| `cnctolequotation.key.pub` | `pigeonfou/CNCToleQuotation` |
+
+Une clé de déploiement distincte est nécessaire pour chaque dépôt. Il suffit d’enregistrer les clés des applications réellement choisies. Tester ensuite chaque dépôt choisi, par exemple :
+
+```bash
+sudo git -c core.sshCommand='ssh -i /etc/oneforall/git/doctrad.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=ask -o HostKeyAlgorithms=ssh-ed25519 -o ConnectTimeout=15' ls-remote ssh://git@ssh.github.com:443/pigeonfou/DocTrad.git refs/heads/main
+```
+
+Vérifier l’empreinte GitHub comme à l’étape précédente, puis répondre `yes`. Cela crée l’entrée GitHub dans `/root/.ssh/known_hosts`, requise ensuite par le gestionnaire. Le résultat attendu est un SHA suivi de `refs/heads/main`. Adapter la clé et le dépôt selon le tableau pour tester les autres services. `Permission denied (publickey)` signifie qu’il faut corriger l’autorisation GitHub avant de poursuivre.
+
+### 0.5 Préparer le réseau OneForAll
+
+Depuis `~/OneForAll` :
+
+```bash
+cp config/site.example.json site.json
+nano site.json
+```
+
+Pour un premier démarrage LAN sans DNS supplémentaire, utiliser cet exemple en remplaçant IP et réseau :
+
+```json
+{
+  "domain": "pigeonfou.com",
+  "lan_ip": "192.168.7.10",
+  "lan_port": 8443,
+  "tunnel_port": 18080,
+  "public_enabled": false,
+  "public_apps": [],
+  "lan_networks": ["192.168.7.0/24"],
+  "certificate": "/etc/oneforall/tls/server.crt",
+  "private_key": "/etc/oneforall/tls/server.key",
+  "routing_mode": "paths"
+}
+```
+
+`domain` sert à la configuration des hôtes et des certificats ; l’accès LAN par IP avec `paths` ne nécessite pas de posséder un domaine public. Choisir votre vrai domaine si un tunnel public est prévu. Dans nano : Ctrl+O, Entrée, puis Ctrl+X.
+
+```bash
+python3 -m json.tool site.json >/dev/null
+sudo bash install-oneforall.sh configure --config "$PWD/site.json"
+```
+
+Si vous activez UFW sur ce serveur frais, autoriser d’abord SSH et le frontal LAN. Adapter le port 22 si SSH utilise un autre port et remplacer le réseau d’exemple :
+
+```bash
+sudo ufw allow from 192.168.7.0/24 to any port 22 proto tcp
+sudo ufw allow from 192.168.7.0/24 to any port 8443 proto tcp
+sudo ufw enable
+sudo ufw status verbose
+```
+
+Votre poste d’administration doit appartenir au réseau autorisé avant d’activer le pare-feu. Aucun port 18101/18102/18112, PostgreSQL ou MariaDB n’est à ouvrir aux postes clients. Ne pas faire de redirection de port Internet sur le routeur pour l’accès LAN.
+
+### 0.6 Préparer un serveur distant neuf (uniquement pour le choix SSH)
+
+À la console de **chaque serveur distant**, effectuer les mises à jour et installer SSH, Python et tar :
+
+```bash
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get install -y openssh-server python3 tar
+sudo systemctl enable --now ssh
+sudo -v
+ip -br -4 address
+sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+Réserver aussi son adresse DHCP. Conserver l’empreinte affichée pour vérifier la connexion depuis le central. Le compte `ubuntu` doit pouvoir utiliser sudo ; son mot de passe sera demandé par l’assistant, sans besoin de configurer NOPASSWD. Si UFW est activé sur le distant, autoriser le port SSH et le port 8443 depuis le LAN avec les règles de l’étape 0.5. Si une mise à jour du noyau demande un redémarrage, le faire avant le transfert de clé.
+
+Revenir sur le **serveur central** et préparer une clé SSH dédiée pour ce serveur distant :
+
+```bash
+sudo install -d -m 700 /root/.ssh
+sudo test -f /root/.ssh/oneforall-remote-192-168-7-20.key || sudo ssh-keygen -t ed25519 -N '' -C oneforall-remote -f /root/.ssh/oneforall-remote-192-168-7-20.key
+sudo ssh-copy-id -i /root/.ssh/oneforall-remote-192-168-7-20.key.pub ubuntu@192.168.7.20
+sudo ssh -i /root/.ssh/oneforall-remote-192-168-7-20.key -o IdentitiesOnly=yes ubuntu@192.168.7.20 'id; cat /etc/os-release'
+```
+
+Remplacer IP et compte ; avec un port différent, ajouter `-p PORT` à `ssh-copy-id` et `ssh`. La première commande de connexion demande de comparer l’empreinte SSH au résultat relevé sur la console distante, puis le mot de passe du **compte SSH distant** pour déposer la clé. Les connexions suivantes utilisent cette clé. Dans l’assistant, fournir le chemin privé `/root/.ssh/oneforall-remote-192-168-7-20.key`, le compte distant et son mot de passe sudo. Ne pas transmettre la clé privée du serveur central au serveur distant.
+
+### 0.7 Lancer l’installation et créer les comptes
+
+Sur le central :
+
+```bash
+cd ~/OneForAll
+sudo bash install-oneforall.sh setup
+```
+
+Pour chaque service : **1 local**, **2 distant déjà installé**, **3 ignorer**, **4 installer via SSH**. L’assistant installe le socle, demande les mots de passe applicatifs pour les premières installations et vérifie les services. Les comptes initiaux sont `admin` ; choisir des mots de passe distincts par application. L’installation distante copie uniquement la clé GitHub de lecture du service concerné pour ses mises à jour.
+
+Après l’assistant, créer le compte d’administration du portail central :
+
+```bash
+sudo bash install-oneforall.sh portal-admin
+sudo bash install-oneforall.sh status
+df -h /
+```
+
+Ouvrir `https://192.168.7.10:8443/` depuis un poste du LAN, puis l’application choisie. Le certificat initial est autosigné : approuver/importer le certificat LAN sur les postes, ou installer un certificat de votre PKI. L’administration du portail est distincte des comptes `admin` applicatifs. Les liens distants utilisent le certificat du serveur distant.
+
+DocTrad : ouvrir `/doctrad/`, se connecter avec `admin`, puis **Système & modèles** pour télécharger un modèle avant une traduction. Le téléchargement nécessite Internet sur le serveur d’application ; les traductions utilisent ensuite les modèles locaux. CNC : préparer OpenCascade selon l’étape 5 avant de traiter des pièces. Un service distant neuf reçoit OneForAll sans runner ni Cloudflare ; ces fonctions restent optionnelles.
+
+### 0.8 Contrôles et entretien
+
+```bash
+sudo bash install-oneforall.sh status
+sudo systemctl status oneforall-nginx --no-pager
+```
+
+Pour les journaux, choisir uniquement les applications installées localement, par exemple `sudo bash install-oneforall.sh logs --apps doctrad`. Pour une application distante, exécuter les commandes de status/logs sur ce serveur via SSH. Tester une connexion applicative et un petit traitement réel avant d’installer des modèles volumineux.
+
+Suivre [sauvegarde et restauration](sauvegarde-restauration.md) et vérifier l’espace avant les mises à jour. Ne pas supprimer automatiquement les versions courantes, modèles ou sauvegardes de retour arrière. Internet/Cloudflare et GitHub Actions ne sont pas nécessaires à cette première installation LAN ; suivre ensuite [GitHub et Cloudflare](github-cloudflare.md) si vous souhaitez les activer.
+
+Les étapes ci-dessus constituent le parcours initial complet. Les sections suivantes détaillent les commandes individuelles et les variantes. Les validations de code ne remplacent pas un test d’installation neuf sur votre matériel.
+
+
 ## 1. Préparer le dépôt
 
-Depuis la branche `main` de `pigeonfou/OneForAll` :
+Si l’étape 0.3 n’a pas déjà récupéré le dépôt, utiliser la branche `main` de `pigeonfou/OneForAll` :
 
 ```bash
 sudo apt-get update
@@ -63,7 +260,7 @@ sudo rm /root/oneforall-admin-password
 
 Répéter séparément pour CNC avec un mot de passe distinct. Le compte PHP initial est `admin`. Le mot de passe fourni à OddWorks n’est pas écrit dans ses sorties d’installation.
 
-Une première installation par le menu crée aussi le compte Python `admin` avec le mot de passe choisi. Pour créer un autre compte, utiliser le choix 14, ou :
+Une première installation par l’assistant `setup` crée aussi le compte Python `admin` avec le mot de passe choisi. Pour une installation Python via le choix 3 sans mot de passe fourni, créer ensuite le compte avec le choix 14. Pour créer un autre compte, utiliser le choix 14, ou :
 
 ```bash
 sudo bash install-oneforall.sh create-admin --apps cableplan
