@@ -246,3 +246,41 @@ class RemoteSudoPasswordTests(unittest.TestCase):
             privileged_command(['ssh', 'host'], 'id -u', 'ubuntu')
             self.assertIn('sudo -n', run.call_args.args[0][-1])
             self.assertNotIn('input', run.call_args.kwargs)
+
+
+class SSHLoginPasswordTests(unittest.TestCase):
+    def test_login_password_uses_separate_pipe_from_sudo_input(self):
+        from remote_install import PasswordSSH, privileged_command
+        def inspect(arguments, **kwargs):
+            self.assertNotIn('login-secret', str(arguments))
+            self.assertEqual(os.read(kwargs['pass_fds'][0], 100), b'login-secret\n')
+            self.assertEqual(kwargs['input'], b'sudo-secret\n')
+            self.assertNotIn('env', kwargs)
+        with patch('remote_install.subprocess.run', side_effect=inspect):
+            privileged_command(PasswordSSH(['ssh', 'ubuntu@192.168.7.20'], 'login-secret'), 'id -u', 'ubuntu', 'sudo-secret')
+
+    def test_login_password_does_not_consume_archive_input(self):
+        import io
+        from remote_install import PasswordSSH, ssh_run
+        archive = io.BytesIO(b'archive-data')
+        def inspect(arguments, **kwargs):
+            self.assertEqual(os.read(kwargs['pass_fds'][0], 100), b'login-secret\n')
+            self.assertIs(kwargs['stdin'], archive)
+            self.assertEqual(archive.read(), b'archive-data')
+        with patch('remote_install.subprocess.run', side_effect=inspect):
+            ssh_run(PasswordSSH(['ssh', 'host'], 'login-secret'), 'cat > payload.tar', stdin=archive, check=True)
+
+
+class InitialApplicationPasswordTests(unittest.TestCase):
+    def test_empty_answers_use_requested_default(self):
+        from remote_install import application_password
+        with patch('remote_install.getpass.getpass', side_effect=['', '']):
+            self.assertEqual(application_password('DocTrad'), 'password1234')
+
+    def test_custom_password_and_confirmation(self):
+        from remote_install import application_password
+        with patch('remote_install.getpass.getpass', side_effect=['custom-secret-123', 'custom-secret-123']):
+            self.assertEqual(application_password('DocTrad'), 'custom-secret-123')
+        with patch('remote_install.getpass.getpass', side_effect=['custom-secret-123', '']):
+            with self.assertRaises(ValueError):
+                application_password('DocTrad')
