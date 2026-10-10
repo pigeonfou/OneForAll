@@ -323,6 +323,75 @@ WantedBy=multi-user.target
     print('Tunnel dédié démarré ; les tunnels existants sont conservés. Configurer les hostnames vers http://127.0.0.1:18080 (ou le port tunnel configuré).')
 
 
+def installation_choices():
+    from portal_settings import validate_services
+    local, distant = [], {}
+    for app, spec in APPS.items():
+        while True:
+            mode = input(f"{spec['name']} : 1 local, 2 distant sur le LAN, 3 ne pas installer [3] : ").strip() or '3'
+            if mode == '1':
+                local.append(app)
+                break
+            if mode == '3':
+                break
+            if mode == '2':
+                try:
+                    value = validate_services({app: input('URL LAN complète (ex. http://192.168.7.20:8080/) : ')})
+                    if app not in value:
+                        raise ValueError('Adresse obligatoire pour un service distant.')
+                    distant.update(value)
+                    break
+                except ValueError as exc:
+                    print(exc)
+            else:
+                print('Choisir 1, 2 ou 3.')
+    return local, distant
+
+
+def setup_installation():
+    from portal_settings import load_services, save_services, SETTINGS
+    if not (ETC / 'site.json').exists():
+        main(['configure', '--config', input('Chemin du JSON de configuration réseau : ').strip()])
+    local, distant = installation_choices()
+    isolated = False
+    if any(Path(APPS[app]['legacy']).exists() for app in local):
+        if input('Installation historique détectée. Saisir INSTANCE pour créer une instance séparée : ') != 'INSTANCE':
+            raise ValueError('Installation annulée ; utiliser l’import historique si nécessaire.')
+        isolated = True
+    main(['bootstrap'])
+    # Preserve choices for skipped services; do not uninstall existing applications.
+    with open('/run/lock/oneforall.lock', 'a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError('Une autre opération OneForAll est en cours.')
+        links = load_services()
+        for app in local:
+            links.pop(app, None)
+        links.update(distant)
+        save_services(links)
+        run('chown', 'ofa-portal:www-data', SETTINGS)
+    for app in local:
+        args = ['install', '--apps', app]
+        if isolated:
+            args.append('--isolated')
+        temp = ETC / 'admin-password.tmp'
+        try:
+            if app not in state():
+                password = getpass.getpass(f'Mot de passe admin de {APPS[app]["name"]} (12 caractères minimum) : ')
+                if len(password) < 12:
+                    raise ValueError('Mot de passe : 12 caractères minimum.')
+                if password != getpass.getpass('Confirmer le mot de passe : '):
+                    raise ValueError('Les mots de passe diffèrent.')
+                atomic(temp, password, 0o600)
+                args += ['--admin-password-file', str(temp)]
+            main(args)
+        finally:
+            temp.unlink(missing_ok=True)
+    main(['status'])
+    print('Services distants : liens LAN configurés, aucune installation sur les autres serveurs. Modifier ces adresses dans Paramètres (admin).')
+
+
 def interactive():
     print('OneForAll — administration native Ubuntu')
     while True:
@@ -332,10 +401,17 @@ def interactive():
 10 Restaurer / revenir en arrière  11 Désinstaller (données conservées)  12 Quitter
 13 Importer une installation historique  14 Créer un compte admin Python
 15 Importer des modèles DocTrad  16 Configurer le Python OpenCascade
-17 Configurer le compte admin du portail''')
+17 Configurer le compte admin du portail
+18 Installation guidée : services locaux ou distants''')
         choice = input('Choix : ').strip()
         if choice == '12':
             return
+        if choice == '18' or (choice == '2' and not (ETC / 'nginx.conf').exists()):
+            try:
+                setup_installation()
+            except (ValueError, subprocess.CalledProcessError, OSError) as exc:
+                print('Échec installation guidée :', str(exc))
+            continue
         args = {'1':['diagnose'], '2':['bootstrap'], '6':['setup-runner'], '8':['status']}.get(choice)
         if choice in ('3','7','9','11'):
             selected = input('Applications, séparées par virgules (cableplan,doctrad,oddworks,cnctolequotation) : ')
@@ -385,7 +461,7 @@ def main(argv=None):
         require_root(); ETC.mkdir(parents=True, exist_ok=True)
         return interactive()
     parser = argparse.ArgumentParser(description='OneForAll — Ubuntu natif')
-    parser.add_argument('command', choices=['diagnose','configure','bootstrap','install','update','status','logs','backup','restore','uninstall','setup-runner','cloudflare','create-admin','reset-admin','render','import-legacy','import-models','configure-geometry','portal-admin'])
+    parser.add_argument('command', choices=['setup','diagnose','configure','bootstrap','install','update','status','logs','backup','restore','uninstall','setup-runner','cloudflare','create-admin','reset-admin','render','import-legacy','import-models','configure-geometry','portal-admin'])
     parser.add_argument('--apps', default='')
     parser.add_argument('--sha')
     parser.add_argument('--config')
@@ -411,6 +487,8 @@ def main(argv=None):
         print('Installations historiques :', {app:Path(spec['legacy']).exists() for app,spec in APPS.items()})
         return
     require_root()
+    if a.command == 'setup':
+        return setup_installation()
     if a.command in ('install','update','backup','restore','uninstall','logs','create-admin','reset-admin','import-legacy','import-models','configure-geometry') and not apps:
         raise ValueError('--apps est requis')
     if a.command in ('restore','create-admin','import-legacy','import-models','configure-geometry') and len(apps) != 1:
