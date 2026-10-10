@@ -182,7 +182,8 @@ class MainBranchDeploymentTests(unittest.TestCase):
             (release/'.ready').write_text(sha)
             with patch.object(deploy,'OPT',opt),patch.object(deploy,'run',return_value=sha) as run:
                 self.assertEqual(deploy.prepare_release('cableplan',sha),(release,sha))
-                self.assertIn('+refs/heads/main:refs/heads/main',run.call_args_list[0].args)
+                self.assertIn('+refs/heads/main:refs/heads/main',run.call_args_list[1].args)
+                self.assertEqual(run.call_args_list[0].args[-4:], ('remote','set-url','origin','https://github.com/pigeonfou/CablePlan.git'))
 
     def test_outdated_sha_rejected_before_release_changes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -284,3 +285,28 @@ class InitialApplicationPasswordTests(unittest.TestCase):
         with patch('remote_install.getpass.getpass', side_effect=['custom-secret-123', '']):
             with self.assertRaises(ValueError):
                 application_password('DocTrad')
+
+
+class PublicRepositoryTests(unittest.TestCase):
+    def test_existing_ssh_mirror_moves_to_https_without_credentials(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            opt = Path(directory)
+            mirror = opt / 'sources/cableplan.git'
+            mirror.parent.mkdir()
+            subprocess.run(['git', 'init', '--bare', str(mirror)], check=True, capture_output=True)
+            subprocess.run(['git', '--git-dir', str(mirror), 'remote', 'add', 'origin', 'ssh://git@ssh.github.com:443/pigeonfou/CablePlan.git'], check=True)
+            sha = 'a' * 40
+            release = opt / 'apps/cableplan/releases' / sha
+            release.mkdir(parents=True)
+            (release / '.ready').touch()
+            def execute(*args, **kwargs):
+                if 'fetch' in args:
+                    return ''
+                if 'rev-parse' in args:
+                    return sha
+                return subprocess.run([str(a) for a in args], check=True, capture_output=True, text=True).stdout.strip()
+            with patch.object(deploy, 'OPT', opt), patch.object(deploy, 'run', side_effect=execute):
+                deploy.prepare_release('cableplan', sha)
+            url = subprocess.check_output(['git','--git-dir',str(mirror),'remote','get-url','origin'], text=True).strip()
+            self.assertEqual(url, 'https://github.com/pigeonfou/CablePlan.git')
