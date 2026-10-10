@@ -203,3 +203,24 @@ class GuidedInstallationTests(unittest.TestCase):
             local, distant = cli.installation_choices()
         self.assertEqual(local, [])
         self.assertEqual(distant, {'cableplan': 'http://192.168.7.20/'})
+
+
+class RemoteInstallationTests(unittest.TestCase):
+    def test_ssh_target_rejects_public_ip_and_injected_account(self):
+        from remote_install import ssh_target
+        self.assertEqual(ssh_target('192.168.7.20', 'ubuntu', 22), ('ubuntu@192.168.7.20', '192.168.7.20'))
+        for address, account, port in [('8.8.8.8', 'ubuntu', 22), ('192.168.7.20', 'root;id', 22), ('192.168.7.20', 'ubuntu', 0)]:
+            with self.assertRaises(ValueError):
+                ssh_target(address, account, port)
+
+    def test_ssh_choice_records_only_successful_installation(self):
+        with patch('builtins.input', side_effect=['4', '3', '3', '3']), patch('cli.site', return_value=CONFIG), patch('remote_install.install_remote', return_value='https://192.168.7.20:8443/cableplan/') as install:
+            local, distant = cli.installation_choices()
+        self.assertEqual(local, [])
+        self.assertEqual(distant, {'cableplan': 'https://192.168.7.20:8443/cableplan/'})
+        install.assert_called_once_with('cableplan', CONFIG)
+
+    def test_remote_failure_does_not_return_a_portal_link(self):
+        with patch('builtins.input', return_value='4'), patch('cli.site', return_value=CONFIG), patch('remote_install.install_remote', side_effect=ValueError('SSH failed')):
+            with self.assertRaisesRegex(ValueError, 'SSH failed'):
+                cli.installation_choices()
