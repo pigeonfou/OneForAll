@@ -382,11 +382,8 @@ def setup_installation():
         temp = ETC / 'admin-password.tmp'
         try:
             if app not in state():
-                password = getpass.getpass(f'Mot de passe admin de {APPS[app]["name"]} (12 caractères minimum) : ')
-                if len(password) < 12:
-                    raise ValueError('Mot de passe : 12 caractères minimum.')
-                if password != getpass.getpass('Confirmer le mot de passe : '):
-                    raise ValueError('Les mots de passe diffèrent.')
+                from remote_install import application_password
+                password = application_password(APPS[app]['name'])
                 atomic(temp, password, 0o600)
                 args += ['--admin-password-file', str(temp)]
             main(args)
@@ -425,8 +422,9 @@ def interactive():
                 if input('Saisir INSTANCE pour autoriser cette installation séparée : ') != 'INSTANCE':
                     continue
                 args += ['--isolated']
-            if choice == '3' and set(selected.split(',')) & {'oddworks','cnctolequotation'}:
-                secret = getpass.getpass('Mot de passe admin (12 caractères minimum, conservé uniquement pendant cette installation) : ')
+            if choice == '3' and selected.strip():
+                from remote_install import application_password
+                secret = application_password('applications sélectionnées')
                 temp = ETC / 'admin-password.tmp'
                 atomic(temp, secret, 0o600)
                 args += ['--admin-password-file', str(temp)]
