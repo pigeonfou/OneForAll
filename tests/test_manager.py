@@ -224,3 +224,25 @@ class RemoteInstallationTests(unittest.TestCase):
         with patch('builtins.input', return_value='4'), patch('cli.site', return_value=CONFIG), patch('remote_install.install_remote', side_effect=ValueError('SSH failed')):
             with self.assertRaisesRegex(ValueError, 'SSH failed'):
                 cli.installation_choices()
+
+
+class RemoteSudoPasswordTests(unittest.TestCase):
+    def test_sudo_secret_is_only_on_stdin(self):
+        from remote_install import privileged_command
+        with patch('remote_install.subprocess.run') as run:
+            privileged_command(['ssh', 'ubuntu@192.168.7.20'], 'id -u', 'ubuntu', 'test-secret-$value')
+        args, kwargs = run.call_args
+        self.assertNotIn('test-secret', str(args))
+        self.assertEqual(kwargs['input'], b'test-secret-$value\n')
+        self.assertIn('sudo -k -S', args[0][-1])
+        self.assertIn('cat >/dev/null', args[0][-1])
+
+    def test_root_and_passwordless_sudo_remain_supported(self):
+        from remote_install import privileged_command
+        with patch('remote_install.subprocess.run') as run:
+            privileged_command(['ssh', 'host'], 'id -u', 'root')
+            self.assertNotIn('sudo', run.call_args.args[0][-1])
+            self.assertNotIn('input', run.call_args.kwargs)
+            privileged_command(['ssh', 'host'], 'id -u', 'ubuntu')
+            self.assertIn('sudo -n', run.call_args.args[0][-1])
+            self.assertNotIn('input', run.call_args.kwargs)
