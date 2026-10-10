@@ -117,3 +117,19 @@ Pour chaque application (CablePlan, DocTrad, OddWorks, CNCToleQuotation), choisi
 - **Ne pas installer** (choix par défaut) : aucune nouvelle installation ; une instance existante n’est pas désinstallée et son adresse existante est conservée.
 
 Seules les adresses IP privées du LAN sont acceptées pour les services distants. Les URL restent modifiables dans **Paramètres (admin)** depuis le LAN, après configuration du compte administrateur du portail avec le choix 17. Choisir local enlève l’ancien lien distant de cette application. Une installation historique détectée nécessite le choix explicite d’une instance séparée ; l’import des données conserve sa procédure dédiée.
+
+### Installer une application distante via SSH
+
+Dans l’assistant, le choix **4 — installer via SSH** prépare une application sur un serveur Ubuntu 24.04/26.04 frais du LAN, puis ajoute son adresse au portail après vérification. Le serveur distant reçoit un socle OneForAll et une instance isolée, sans tunnel ni runner. Cette première version cible un serveur frais par application ; un socle OneForAll existant ou l’installation historique de cette application entraîne un refus.
+
+Préparer avant de lancer :
+
+- Un accès SSH par clé depuis le serveur central, avec root ou un compte autorisé à exécuter `sudo -n`. La clé privée SSH reste sur le serveur central. Vérifier l’empreinte SSH du serveur distant lors de la première connexion.
+- La clé GitHub de lecture du dépôt sélectionné dans `/etc/oneforall/git/<application>.key`, et les clés d’hôte GitHub vérifiées dans `/root/.ssh/known_hosts`. L’assistant copie cette clé de lecture sur le serveur distant par SSH pour son installation et ses mises à jour.
+- Un accès Internet du serveur distant aux dépôts Ubuntu, GitHub et Python pendant l’installation, puis un accès LAN au port configuré (8443 par défaut). Les plages LAN de la configuration centrale sont reprises.
+
+L’assistant demande l’IP privée, le compte et le port SSH, le chemin de la clé SSH locale et le mot de passe administrateur de l’application. Les secrets sont transmis dans une archive privée via SSH, jamais dans les arguments de commande ; les fichiers temporaires sont supprimés après la tentative. Une installation échouée peut laisser un socle partiellement configuré : examiner ses journaux et reprendre sur ce serveur ; ne pas contourner le refus d’installation existante.
+
+Le portail propose une adresse HTTPS LAN avec certificat autosigné, à approuver sur les postes clients. DocTrad nécessite ensuite ses modèles locaux et CNC son Python OpenCascade. Le choix **2 — distant déjà installé** conserve son rôle d’enregistrement d’adresse uniquement.
+
+Validation : tests automatisés des adresses SSH et de l’enregistrement conditionné à la réussite. Aucun déploiement SSH réel sur serveur frais n’a été exécuté dans cet environnement.
