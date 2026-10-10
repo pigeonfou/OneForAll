@@ -83,10 +83,6 @@ def install_remote(app, configuration):
     login_password = getpass.getpass('Mot de passe du compte SSH distant : ')
     if not login_password or len(login_password.encode()) > 1024 or any(c in login_password for c in ('\n', '\r', '\x00')):
         raise ValueError('Mot de passe SSH invalide.')
-    git_key = ETC / 'git' / (app + '.key')
-    known_hosts = Path('/root/.ssh/known_hosts')
-    if not git_key.is_file() or not known_hosts.is_file():
-        raise ValueError(f'Préparer /etc/oneforall/git/{app}.key et les clés d’hôte GitHub vérifiées avant l’installation distante.')
     password = application_password(APPS[app]['name'])
     base = ['ssh', '-p', str(port), '-o', 'PubkeyAuthentication=no',
             '-o', 'PreferredAuthentications=password,keyboard-interactive',
@@ -128,25 +124,18 @@ true
             (root / 'admin-password').write_text(password)
             (root / 'admin-password').chmod(0o600)
             password = None
-            (root / 'git.key').write_bytes(git_key.read_bytes())
-            (root / 'known_hosts').write_bytes(known_hosts.read_bytes())
             archive = root / 'payload.tar'
             with tarfile.open(archive, 'w') as tar:
                 for path in ROOT.rglob('*'):
                     relative = path.relative_to(ROOT)
                     if path.is_file() and not path.is_symlink() and not any(part.startswith('.') or part == '__pycache__' for part in relative.parts) and relative.parts[0] in {'oneforall', 'config', 'portal', 'install-oneforall.sh'}:
                         tar.add(path, arcname='manager/' + str(relative), recursive=False)
-                for name in ('site.json', 'admin-password', 'git.key', 'known_hosts'):
+                for name in ('site.json', 'admin-password'):
                     tar.add(root / name, arcname=name)
             with archive.open('rb') as stream:
                 ssh_run(ssh, 'umask 077; cat > ' + shlex.quote(stage + '/payload.tar'), stdin=stream, check=True)
             command(f'tar -xf {stage}/payload.tar -C {stage}')
             command(f'''set -e
-install -d -m 700 /etc/oneforall/git /root/.ssh
-install -m 600 {stage}/git.key /etc/oneforall/git/{app}.key
-# Add verified GitHub keys without replacing existing SSH host records.
-cat {stage}/known_hosts >> /root/.ssh/known_hosts
-chmod 600 /root/.ssh/known_hosts
 python3 {stage}/manager/oneforall/cli.py configure --config {stage}/site.json
 python3 {stage}/manager/oneforall/cli.py bootstrap
 python3 /opt/oneforall/manager/oneforall/cli.py install --apps {app} --admin-password-file {stage}/admin-password
