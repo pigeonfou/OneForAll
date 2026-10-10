@@ -37,60 +37,23 @@ Réserver l’adresse du serveur dans le DHCP de votre routeur ; c’est l’opt
 
 DocTrad peut occuper plusieurs dizaines de Go : environ 6 Go par version Python/CUDA dans l’installation observée, auxquels s’ajoutent modèles et sauvegardes. Prévoir l’espace pour **deux versions et une sauvegarde complète des données**. Une partition de 100 Go peut se remplir rapidement avec plusieurs modèles et des sauvegardes répétées ; surveiller `df -h /` avant chaque mise à jour.
 
-### 0.3 Récupérer OneForAll, y compris si le dépôt est privé
+### 0.3 Récupérer OneForAll sans compte GitHub ni clé
 
-Pour un dépôt accessible publiquement, utiliser le clone HTTPS de l’étape 1. Si GitHub demande un identifiant/mot de passe ou si le dépôt est privé, préparer une clé de lecture du dépôt OneForAll :
-
-```bash
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
-test -f ~/.ssh/oneforall-repo.key || ssh-keygen -t ed25519 -N '' -C oneforall-repo -f ~/.ssh/oneforall-repo.key
-cat ~/.ssh/oneforall-repo.key.pub
-```
-
-Dans GitHub, ouvrir **pigeonfou/OneForAll → Settings → Deploy keys → Add deploy key**, coller la clé **publique**, sans cocher l’accès en écriture. Puis :
+Tous les dépôts du projet sont publics. Depuis votre compte Ubuntu :
 
 ```bash
 cd ~
-git -c core.sshCommand="ssh -i $HOME/.ssh/oneforall-repo.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=ask" clone --branch main ssh://git@ssh.github.com:443/pigeonfou/OneForAll.git
+git clone --branch main https://github.com/pigeonfou/OneForAll.git
 cd OneForAll
 ```
 
-À la première connexion, vérifier l’empreinte de GitHub avant de saisir **uniquement `yes`**, puis Entrée. Pour ED25519, l’empreinte publiée est `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU` ; la comparer aussi à la [page officielle GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints). Ne pas coller une nouvelle commande à la place de cette réponse. Le mot de passe de votre compte GitHub ne permet pas d’authentifier les opérations Git HTTPS.
+Aucune clé SSH, Deploy key, connexion GitHub ou token n’est nécessaire. Si le dossier existe déjà, utiliser `cd ~/OneForAll && git pull --ff-only origin main` au lieu de cloner par-dessus.
 
-Si vous avez déjà cloné le dépôt, faire `cd ~/OneForAll && git pull --ff-only origin main` ; ne pas le cloner par-dessus le dossier existant. Continuer à l’étape 2 après ces préparatifs.
+### 0.4 Accès aux dépôts applicatifs publics
 
-### 0.4 Donner au gestionnaire l’accès aux dépôts applicatifs
+L’installateur clone et met à jour CablePlan, DocTrad, OddWorks et CNCToleQuotation en HTTPS sans authentification. Ne pas générer de clés GitHub et ne pas préparer `/etc/oneforall/git` pour cette installation. Les miroirs existants sont automatiquement redirigés vers leurs URL HTTPS lors d’une installation ou mise à jour.
 
-À faire **avant** le choix d’installation locale ou SSH pour chaque application sélectionnée, même si le compte Ubuntu peut déjà accéder à GitHub : le gestionnaire travaille en root et utilise ses propres clés.
-
-```bash
-sudo install -d -m 700 /etc/oneforall/git /root/.ssh
-sudo bash -c '
-set -e
-for app in cableplan doctrad oddworks cnctolequotation; do
-  test -f "/etc/oneforall/git/$app.key" || ssh-keygen -t ed25519 -N "" -C "oneforall-$app" -f "/etc/oneforall/git/$app.key"
-  chmod 600 "/etc/oneforall/git/$app.key"
-done
-'
-```
-
-Afficher séparément les clés publiques avec `sudo cat /etc/oneforall/git/cableplan.key.pub`, puis les autres identifiants. Ajouter chaque clé au bon dépôt dans **Settings → Deploy keys**, en lecture seule :
-
-| Clé | Dépôt GitHub |
-| --- | --- |
-| `cableplan.key.pub` | `pigeonfou/CablePlan` |
-| `doctrad.key.pub` | `pigeonfou/DocTrad` |
-| `oddworks.key.pub` | `pigeonfou/gestion-projet` |
-| `cnctolequotation.key.pub` | `pigeonfou/CNCToleQuotation` |
-
-Une clé de déploiement distincte est nécessaire pour chaque dépôt. Il suffit d’enregistrer les clés des applications réellement choisies. Tester ensuite chaque dépôt choisi, par exemple :
-
-```bash
-sudo git -c core.sshCommand='ssh -i /etc/oneforall/git/doctrad.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=ask -o HostKeyAlgorithms=ssh-ed25519 -o ConnectTimeout=15' ls-remote ssh://git@ssh.github.com:443/pigeonfou/DocTrad.git refs/heads/main
-```
-
-Vérifier l’empreinte GitHub comme à l’étape précédente, puis répondre `yes`. Cela crée l’entrée GitHub dans `/root/.ssh/known_hosts`, requise ensuite par le gestionnaire. Le résultat attendu est un SHA suivi de `refs/heads/main`. Adapter la clé et le dépôt selon le tableau pour tester les autres services. `Permission denied (publickey)` signifie qu’il faut corriger l’autorisation GitHub avant de poursuivre.
+Les serveurs locaux et distants ont besoin d’un accès HTTPS sortant à GitHub, aux dépôts Ubuntu et aux dépendances Python. Les identifiants SSH/sudo des serveurs distants servent uniquement à administrer ces serveurs ; ils ne servent pas à accéder à GitHub.
 
 ### 0.5 Préparer le réseau OneForAll
 
@@ -181,7 +144,7 @@ cd ~/OneForAll
 sudo bash install-oneforall.sh setup
 ```
 
-Pour chaque service : **1 local**, **2 distant déjà installé**, **3 ignorer**, **4 installer via SSH**. L’assistant installe le socle, demande les mots de passe applicatifs pour les premières installations et vérifie les services. Les comptes initiaux sont `admin` ; Entrée utilise `password1234` par défaut pour le nouveau compte `admin` ; vous pouvez saisir un autre mot de passe (12 caractères minimum). Remplacer ce mot de passe commun après la première connexion et avant une exposition publique. L’installation distante copie uniquement la clé GitHub de lecture du service concerné pour ses mises à jour.
+Pour chaque service : **1 local**, **2 distant déjà installé**, **3 ignorer**, **4 installer via SSH**. L’assistant installe le socle, demande les mots de passe applicatifs pour les premières installations et vérifie les services. Les comptes initiaux sont `admin` ; Entrée utilise `password1234` par défaut pour le nouveau compte `admin` ; vous pouvez saisir un autre mot de passe (12 caractères minimum). Remplacer ce mot de passe commun après la première connexion et avant une exposition publique. L’installation distante récupère le dépôt public directement en HTTPS pour ses installations et mises à jour.
 
 Après l’assistant, créer le compte d’administration du portail central :
 
@@ -221,7 +184,7 @@ git clone https://github.com/pigeonfou/OneForAll.git
 cd OneForAll
 ```
 
-Si le dépôt est privé, utiliser votre accès GitHub déjà configuré, ou une clé de lecture comme expliqué dans `github-cloudflare.md`. Ne pas incorporer un token dans l’URL Git.
+Le dépôt est public : aucun identifiant GitHub ni clé SSH n’est requis.
 
 ## 2. Recenser le serveur
 
@@ -297,7 +260,7 @@ Effectuer les parcours détaillés dans `verification.md`. Valider aussi sauvega
 
 ## 7. Internet et déploiement autonome
 
-Configurer les clés Git de lecture, le runner et le tunnel avec `github-cloudflare.md`. Mettre `public_enabled: true` et choisir `public_apps` explicitement. Dans CablePlan, activer également l’accès distant dans ses paramètres depuis le LAN. Le gestionnaire ne change pas cette option à votre place.
+Configurer le runner et le tunnel avec `github-cloudflare.md` ; les dépôts publics sont récupérés en HTTPS sans clé de lecture. Mettre `public_enabled: true` et choisir `public_apps` explicitement. Dans CablePlan, activer également l’accès distant dans ses paramètres depuis le LAN. Le gestionnaire ne change pas cette option à votre place.
 
 Ne retirer les anciennes routes et chaînes de déploiement qu’après import, recette et décision de bascule. Voir `migration.md`.
 
@@ -332,15 +295,14 @@ Dans l’assistant, le choix **4 — installer via SSH** prépare une applicatio
 Préparer avant de lancer :
 
 - Un accès SSH par compte Linux et mot de passe depuis le central, avec un compte autorisé à utiliser `sudo` (avec ou sans mot de passe). Aucune clé SSH interserveurs n’est nécessaire. Vérifier l’empreinte SSH du serveur distant lors de la première connexion.
-- La clé GitHub de lecture du dépôt sélectionné dans `/etc/oneforall/git/<application>.key`, et les clés d’hôte GitHub vérifiées dans `/root/.ssh/known_hosts`. L’assistant copie cette clé de lecture sur le serveur distant par SSH pour son installation et ses mises à jour.
 - Un accès Internet du serveur distant aux dépôts Ubuntu, GitHub et Python pendant l’installation, puis un accès LAN au port configuré (8443 par défaut). Les plages LAN de la configuration centrale sont reprises.
 
-L’assistant demande l’IP privée, le compte et le port SSH, le mot de passe SSH du compte distant, le mot de passe sudo distant (saisie masquée, vide pour sudo sans mot de passe) et le mot de passe administrateur de l’application. Les secrets sont transmis dans une archive privée via SSH, jamais dans les arguments de commande ; les fichiers temporaires sont supprimés après la tentative. Une installation échouée peut laisser un socle partiellement configuré : examiner ses journaux et reprendre sur ce serveur ; ne pas contourner le refus d’installation existante.
+L’assistant demande l’IP privée, le compte et le port SSH, le mot de passe SSH du compte distant, le mot de passe sudo distant (saisie masquée, vide pour sudo sans mot de passe) et le mot de passe administrateur de l’application. Le mot de passe administrateur applicatif est transmis dans une archive privée via SSH, jamais dans les arguments de commande ; les fichiers temporaires sont supprimés après la tentative. Une installation échouée peut laisser un socle partiellement configuré : examiner ses journaux et reprendre sur ce serveur ; ne pas contourner le refus d’installation existante.
 
 Le portail propose une adresse HTTPS LAN avec certificat autosigné, à approuver sur les postes clients. DocTrad nécessite ensuite ses modèles locaux et CNC son Python OpenCascade. Le choix **2 — distant déjà installé** conserve son rôle d’enregistrement d’adresse uniquement.
 
 Validation : tests automatisés des adresses SSH et de l’enregistrement conditionné à la réussite. Aucun déploiement SSH réel sur serveur frais n’a été exécuté dans cet environnement.
 
-Le mot de passe sudo reste uniquement en mémoire et est transmis sur l’entrée standard du processus SSH chiffré ; il n’est écrit ni dans un fichier ni dans les arguments. L’archive est transférée séparément pour que sudo ne consomme pas les données du transfert. L’authentification SSH utilise le compte Linux et son mot de passe. Les clés GitHub des dépôts privés restent nécessaires : elles ne sont pas des clés de connexion entre vos serveurs.
+Le mot de passe sudo reste uniquement en mémoire et est transmis sur l’entrée standard du processus SSH chiffré ; il n’est écrit ni dans un fichier ni dans les arguments. L’archive est transférée séparément pour que sudo ne consomme pas les données du transfert. L’authentification SSH utilise le compte Linux et son mot de passe. Les dépôts publics sont récupérés en HTTPS sans authentification GitHub.
 
 Le défaut `admin` / `password1234` concerne les nouvelles installations locales et distantes via OneForAll ; il ne réinitialise pas les comptes existants et ne modifie pas le mot de passe sudo, SSH ou du portail.
