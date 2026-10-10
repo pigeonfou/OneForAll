@@ -59,14 +59,11 @@ def prepare_release(app, sha=None):
     spec = APPS[app]
     mirror = OPT / 'sources' / (app + '.git')
     mirror.parent.mkdir(parents=True, exist_ok=True)
+    url = f"https://github.com/{spec['repo']}.git"
     if not mirror.exists():
-        key = ETC / 'git' / (app + '.key')
-        if key.exists():
-            ssh = f'ssh -i {key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes'
-            run('git', 'clone', '--mirror', '-c', 'core.sshCommand=' + ssh,
-                f"ssh://git@ssh.github.com:443/{spec['repo']}.git", mirror)
-        else:
-            run('git', 'clone', '--mirror', f"https://github.com/{spec['repo']}.git", mirror)
+        run('git', 'clone', '--mirror', url, mirror)
+    # Existing mirrors may still point at the former SSH transport.
+    run('git', '--git-dir', mirror, 'remote', 'set-url', 'origin', url)
     run('git', '--git-dir', mirror, 'fetch', '--prune', 'origin', f"+refs/heads/{spec['ref']}:refs/heads/{spec['ref']}")
     head = run('git', '--git-dir', mirror, 'rev-parse', f"refs/heads/{spec['ref']}^{{commit}}", capture=True)
     if sha and (not re.fullmatch('[a-f0-9]{40}', sha) or sha != head):
