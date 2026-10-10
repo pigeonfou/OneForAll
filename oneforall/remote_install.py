@@ -25,6 +25,17 @@ def ssh_target(address, username, port):
     return f'{username}@{ip}', host
 
 
+def privileged_command(ssh, script, username, sudo_password=None, **kwargs):
+    if username == 'root':
+        return subprocess.run(ssh + ['bash -c ' + shlex.quote(script)], check=True, **kwargs)
+    if sudo_password is None:
+        command = 'sudo -n bash -c ' + shlex.quote(script)
+        return subprocess.run(ssh + [command], check=True, **kwargs)
+    # Password occupies stdin only. Drain leftover input for NOPASSWD accounts.
+    command = "sudo -k -S -p '' bash -c " + shlex.quote('cat >/dev/null; ' + script)
+    return subprocess.run(ssh + [command], input=(sudo_password + '\n').encode(), check=True, **kwargs)
+
+
 def install_remote(app, configuration):
     address = input('IP privée du serveur Ubuntu distant : ').strip()
     username = input('Compte SSH [ubuntu] : ').strip() or 'ubuntu'
@@ -42,10 +53,14 @@ def install_remote(app, configuration):
         raise ValueError('Mot de passe invalide ou confirmation différente.')
     ssh = ['ssh', '-p', str(port), '-i', str(identity), '-o', 'IdentitiesOnly=yes',
            '-o', 'StrictHostKeyChecking=ask', '-o', 'ConnectTimeout=15', target]
-    prefix = '' if username == 'root' else 'sudo -n '
+    sudo_password = None
+    if username != 'root':
+        sudo_password = getpass.getpass('Mot de passe sudo du serveur distant (vide si sudo sans mot de passe) : ') or None
+        if sudo_password and any(c in sudo_password for c in ('\n', '\r', '\x00')):
+            raise ValueError('Mot de passe sudo invalide.')
     stage = '/var/tmp/oneforall-remote-' + uuid.uuid4().hex
     def command(script, **kwargs):
-        return subprocess.run(ssh + [prefix + 'bash -c ' + shlex.quote(script)], check=True, **kwargs)
+        return privileged_command(ssh, script, username, sudo_password, **kwargs)
     # A fresh host only: no takeover of an existing manager or historic app.
     legacy = shlex.quote(APPS[app]['legacy'])
     command(f'''set -e
@@ -55,8 +70,9 @@ def install_remote(app, configuration):
 [ ! -e {legacy} ]
 command -v python3 >/dev/null
 command -v tar >/dev/null
-mkdir -m 700 {stage}
+true
 ''')
+    subprocess.run(ssh + ['umask 077; mkdir ' + shlex.quote(stage)], check=True)
     try:
         with tempfile.TemporaryDirectory(prefix='ofa-remote-') as directory:
             root = Path(directory)
@@ -78,7 +94,8 @@ mkdir -m 700 {stage}
                 for name in ('site.json', 'admin-password', 'git.key', 'known_hosts'):
                     tar.add(root / name, arcname=name)
             with archive.open('rb') as stream:
-                command(f'tar -xf - -C {stage}', stdin=stream)
+                subprocess.run(ssh + ['umask 077; cat > ' + shlex.quote(stage + '/payload.tar')], stdin=stream, check=True)
+            command(f'tar -xf {stage}/payload.tar -C {stage}')
             command(f'''set -e
 install -d -m 700 /etc/oneforall/git /root/.ssh
 install -m 600 {stage}/git.key /etc/oneforall/git/{app}.key
@@ -101,4 +118,7 @@ python3 /opt/oneforall/manager/oneforall/cli.py install --apps {app} --admin-pas
             print('Le certificat LAN autosigné doit être approuvé sur les postes clients. DocTrad nécessite ensuite ses modèles ; CNC nécessite OpenCascade.')
             return url
     finally:
-        command(f'rm -rf -- {stage}')
+        try:
+            command('rm -rf -- ' + shlex.quote(stage))
+        finally:
+            sudo_password = None
