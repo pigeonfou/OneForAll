@@ -138,29 +138,39 @@ Votre poste d’administration doit appartenir au réseau autorisé avant d’ac
 
 ### 0.6 Préparer un serveur distant neuf (uniquement pour le choix SSH)
 
-À la console de **chaque serveur distant**, effectuer les mises à jour et installer SSH, Python et tar :
+À la console de chaque serveur distant, préparer Ubuntu et le compte utilisé :
 
 ```bash
 sudo apt-get update && sudo apt-get upgrade -y
 sudo apt-get install -y openssh-server python3 tar
 sudo systemctl enable --now ssh
+sudo passwd ubuntu
 sudo -v
 ip -br -4 address
 sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 
-Réserver aussi son adresse DHCP. Conserver l’empreinte affichée pour vérifier la connexion depuis le central. Le compte `ubuntu` doit pouvoir utiliser sudo ; son mot de passe sera demandé par l’assistant, sans besoin de configurer NOPASSWD. Si UFW est activé sur le distant, autoriser le port SSH et le port 8443 depuis le LAN avec les règles de l’étape 0.5. Si une mise à jour du noyau demande un redémarrage, le faire avant le transfert de clé.
+Remplacer `ubuntu` par votre compte réel. Lui attribuer un mot de passe de connexion et vérifier qu’il peut utiliser sudo. Le mot de passe Linux/SSH reste celui de ce compte ; `password1234` est uniquement le défaut des nouveaux comptes administrateurs applicatifs.
 
-Revenir sur le **serveur central** et préparer une clé SSH dédiée pour ce serveur distant :
+Si SSH n’autorise pas les mots de passe, depuis la console distante :
 
 ```bash
-sudo install -d -m 700 /root/.ssh
-sudo test -f /root/.ssh/oneforall-remote-192-168-7-20.key || sudo ssh-keygen -t ed25519 -N '' -C oneforall-remote -f /root/.ssh/oneforall-remote-192-168-7-20.key
-sudo ssh-copy-id -i /root/.ssh/oneforall-remote-192-168-7-20.key.pub ubuntu@192.168.7.20
-sudo ssh -i /root/.ssh/oneforall-remote-192-168-7-20.key -o IdentitiesOnly=yes ubuntu@192.168.7.20 'id; cat /etc/os-release'
+printf '%s\n' 'PasswordAuthentication yes' | sudo tee /etc/ssh/sshd_config.d/00-oneforall-password.conf >/dev/null
+sudo sshd -t && sudo systemctl reload ssh
+sudo sshd -T | grep '^passwordauthentication '
 ```
 
-Remplacer IP et compte ; avec un port différent, ajouter `-p PORT` à `ssh-copy-id` et `ssh`. La première commande de connexion demande de comparer l’empreinte SSH au résultat relevé sur la console distante, puis le mot de passe du **compte SSH distant** pour déposer la clé. Les connexions suivantes utilisent cette clé. Dans l’assistant, fournir le chemin privé `/root/.ssh/oneforall-remote-192-168-7-20.key`, le compte distant et son mot de passe sudo. Ne pas transmettre la clé privée du serveur central au serveur distant.
+Le résultat attendu est `passwordauthentication yes`. Des règles `Match` ou une configuration gérée peuvent modifier cette valeur pour un compte ; tester la connexion réelle avant l’assistant. Réserver l’IP dans le DHCP. Si UFW est actif, autoriser SSH et 8443 depuis le réseau LAN comme à l’étape 0.5.
+
+Sur le central, vérifier la connexion par utilisateur et mot de passe, sans clé :
+
+```bash
+ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password ubuntu@192.168.7.20 'id; cat /etc/os-release'
+```
+
+Remplacer IP et compte ; ajouter `-p PORT` si nécessaire. Comparer l’empreinte présentée avec celle relevée sur la console distante avant de répondre `yes`. Le mot de passe est celui du compte Linux distant. Aucun `ssh-keygen` ni `ssh-copy-id` n’est nécessaire entre les serveurs.
+
+L’assistant demande l’IP, le compte, le port SSH, le mot de passe SSH et le mot de passe sudo. Les saisies sont masquées ; les secrets de connexion restent en mémoire. `sshpass` est installé automatiquement sur le central si nécessaire et reçoit le mot de passe par un descripteur privé, sans secret dans les arguments ou l’environnement. La vérification de l’identité du serveur SSH reste activée.
 
 ### 0.7 Lancer l’installation et créer les comptes
 
@@ -171,7 +181,7 @@ cd ~/OneForAll
 sudo bash install-oneforall.sh setup
 ```
 
-Pour chaque service : **1 local**, **2 distant déjà installé**, **3 ignorer**, **4 installer via SSH**. L’assistant installe le socle, demande les mots de passe applicatifs pour les premières installations et vérifie les services. Les comptes initiaux sont `admin` ; choisir des mots de passe distincts par application. L’installation distante copie uniquement la clé GitHub de lecture du service concerné pour ses mises à jour.
+Pour chaque service : **1 local**, **2 distant déjà installé**, **3 ignorer**, **4 installer via SSH**. L’assistant installe le socle, demande les mots de passe applicatifs pour les premières installations et vérifie les services. Les comptes initiaux sont `admin` ; Entrée utilise `password1234` par défaut pour le nouveau compte `admin` ; vous pouvez saisir un autre mot de passe (12 caractères minimum). Remplacer ce mot de passe commun après la première connexion et avant une exposition publique. L’installation distante copie uniquement la clé GitHub de lecture du service concerné pour ses mises à jour.
 
 Après l’assistant, créer le compte d’administration du portail central :
 
@@ -249,7 +259,7 @@ Pour une installation non interactive des applications PHP : créer un fichier r
 ```bash
 sudo python3 - <<'PY'
 import getpass, os
-password=getpass.getpass('Mot de passe admin (12 caractères minimum) : ')
+password=getpass.getpass('Mot de passe admin [password1234] : ') or 'password1234'
 if len(password)<12: raise SystemExit('Trop court')
 fd=os.open('/root/oneforall-admin-password',os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
 with os.fdopen(fd,'w') as f: f.write(password)
@@ -309,7 +319,7 @@ Sur une installation fraîche, le choix 2 du menu lance aussi cet assistant. Le 
 
 Pour chaque application (CablePlan, DocTrad, OddWorks, CNCToleQuotation), choisir :
 
-- **Local** : installer l’application sur ce serveur ; une première installation demande et confirme le mot de passe administrateur (12 caractères minimum).
+- **Local** : installer l’application sur ce serveur ; une première installation propose `password1234` pour le compte `admin` (Entrée pour accepter), ou un mot de passe personnalisé d’au moins 12 caractères.
 - **Distant sur le LAN** : saisir son URL complète, par exemple `http://192.168.7.20:8080/doctrad/`. Le portail crée un lien LAN vers cette application. Aucune installation ni migration n’est effectuée sur le serveur distant ; ce lien ne publie pas ce serveur via le tunnel Cloudflare.
 - **Ne pas installer** (choix par défaut) : aucune nouvelle installation ; une instance existante n’est pas désinstallée et son adresse existante est conservée.
 
@@ -321,14 +331,16 @@ Dans l’assistant, le choix **4 — installer via SSH** prépare une applicatio
 
 Préparer avant de lancer :
 
-- Un accès SSH par clé depuis le serveur central, avec root ou un compte autorisé à utiliser `sudo` (avec ou sans mot de passe). La clé privée SSH reste sur le serveur central. Vérifier l’empreinte SSH du serveur distant lors de la première connexion.
+- Un accès SSH par compte Linux et mot de passe depuis le central, avec un compte autorisé à utiliser `sudo` (avec ou sans mot de passe). Aucune clé SSH interserveurs n’est nécessaire. Vérifier l’empreinte SSH du serveur distant lors de la première connexion.
 - La clé GitHub de lecture du dépôt sélectionné dans `/etc/oneforall/git/<application>.key`, et les clés d’hôte GitHub vérifiées dans `/root/.ssh/known_hosts`. L’assistant copie cette clé de lecture sur le serveur distant par SSH pour son installation et ses mises à jour.
 - Un accès Internet du serveur distant aux dépôts Ubuntu, GitHub et Python pendant l’installation, puis un accès LAN au port configuré (8443 par défaut). Les plages LAN de la configuration centrale sont reprises.
 
-L’assistant demande l’IP privée, le compte et le port SSH, le chemin de la clé SSH locale, le mot de passe sudo distant (saisie masquée, vide pour sudo sans mot de passe) et le mot de passe administrateur de l’application. Les secrets sont transmis dans une archive privée via SSH, jamais dans les arguments de commande ; les fichiers temporaires sont supprimés après la tentative. Une installation échouée peut laisser un socle partiellement configuré : examiner ses journaux et reprendre sur ce serveur ; ne pas contourner le refus d’installation existante.
+L’assistant demande l’IP privée, le compte et le port SSH, le mot de passe SSH du compte distant, le mot de passe sudo distant (saisie masquée, vide pour sudo sans mot de passe) et le mot de passe administrateur de l’application. Les secrets sont transmis dans une archive privée via SSH, jamais dans les arguments de commande ; les fichiers temporaires sont supprimés après la tentative. Une installation échouée peut laisser un socle partiellement configuré : examiner ses journaux et reprendre sur ce serveur ; ne pas contourner le refus d’installation existante.
 
 Le portail propose une adresse HTTPS LAN avec certificat autosigné, à approuver sur les postes clients. DocTrad nécessite ensuite ses modèles locaux et CNC son Python OpenCascade. Le choix **2 — distant déjà installé** conserve son rôle d’enregistrement d’adresse uniquement.
 
 Validation : tests automatisés des adresses SSH et de l’enregistrement conditionné à la réussite. Aucun déploiement SSH réel sur serveur frais n’a été exécuté dans cet environnement.
 
-Le mot de passe sudo reste uniquement en mémoire et est transmis sur l’entrée standard du processus SSH chiffré ; il n’est écrit ni dans un fichier ni dans les arguments. L’archive est transférée séparément pour que sudo ne consomme pas les données du transfert. L’authentification SSH reste effectuée par clé.
+Le mot de passe sudo reste uniquement en mémoire et est transmis sur l’entrée standard du processus SSH chiffré ; il n’est écrit ni dans un fichier ni dans les arguments. L’archive est transférée séparément pour que sudo ne consomme pas les données du transfert. L’authentification SSH utilise le compte Linux et son mot de passe. Les clés GitHub des dépôts privés restent nécessaires : elles ne sont pas des clés de connexion entre vos serveurs.
+
+Le défaut `admin` / `password1234` concerne les nouvelles installations locales et distantes via OneForAll ; il ne réinitialise pas les comptes existants et ne modifie pas le mot de passe sudo, SSH ou du portail.
