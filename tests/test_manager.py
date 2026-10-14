@@ -18,6 +18,11 @@ CONFIG = json.loads((common.ROOT / 'config/site.example.json').read_text())
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_doctrad_system_dependencies_include_java_for_opendataloader(self):
+        self.assertIn('default-jre-headless', deploy.DOCTRAD_SYSTEM_PACKAGES)
+        self.assertIn('postgresql', deploy.DOCTRAD_SYSTEM_PACKAGES)
+        self.assertIn('poppler-utils', deploy.DOCTRAD_SYSTEM_PACKAGES)
+
     def test_configuration_rejects_injection_and_public_network(self):
         for key, value in [('domain','x; include evil;'),('lan_ip','0.0.0.0'),('lan_networks',['0.0.0.0/0']),('certificate','/tmp/a;bad'),('public_apps',['evil']),('lan_port','8443')]:
             c=copy.deepcopy(CONFIG);c[key]=value

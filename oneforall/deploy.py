@@ -13,6 +13,8 @@ from pathlib import Path
 
 from common import APPS, BACKUPS, ETC, OPT, ROOT, VAR, app_env, as_user, atomic, read_json, run, save_env, services, state, user, write_json
 
+DOCTRAD_SYSTEM_PACKAGES = ('postgresql', 'tesseract-ocr', 'tesseract-ocr-eng', 'poppler-utils', 'default-jre-headless')
+
 
 def packages(*names):
     run('apt-get', 'update', '-qq')
@@ -88,7 +90,7 @@ def prepare_release(app, sha=None):
     if spec['kind'] == 'python':
         packages('python3-venv', 'build-essential', 'libpq-dev', 'fonts-dejavu-core', 'curl')
         if app == 'doctrad':
-            packages('postgresql', 'tesseract-ocr', 'tesseract-ocr-eng', 'poppler-utils')
+            packages(*DOCTRAD_SYSTEM_PACKAGES)
         temp = Path('/var/tmp') / ('oneforall-' + app + '-install')
         run('install', '-d', '-m', '0700', '-o', user(app), '-g', user(app), temp)
         if app == 'doctrad':
