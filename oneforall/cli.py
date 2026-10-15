@@ -479,6 +479,11 @@ def main(argv=None):
     apps = list(dict.fromkeys(part.strip().lower() for part in a.apps.split(',') if part.strip()))
     if any(app not in APPS for app in apps):
         raise ValueError('Application inconnue')
+    # Independently deployed local applications (DocTrad2 integration v1)
+    if a.command in ('install','update','backup','restore','uninstall','create-admin','reset-admin','import-legacy','import-models','configure-geometry'):
+        from external_apps import refuse_external
+        for app in apps:
+            refuse_external(app, APPS)
     if a.command == 'render':
         print(nginx(validate_site(read_json(a.config)), {app: {} for app in apps}))
         return

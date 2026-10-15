@@ -58,6 +58,9 @@ WantedBy=multi-user.target
 
 
 def prepare_release(app, sha=None):
+    # Independently deployed local applications (DocTrad2 integration v1)
+    from external_apps import refuse_external
+    refuse_external(app, APPS)
     spec = APPS[app]
     mirror = OPT / 'sources' / (app + '.git')
     mirror.parent.mkdir(parents=True, exist_ok=True)

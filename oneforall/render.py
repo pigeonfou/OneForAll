@@ -1,3 +1,4 @@
+# Independently deployed local applications (DocTrad2 integration v1)
 from common import APPS, OPT, ETC, validate_site
 
 
@@ -138,7 +139,7 @@ def path_locations(app, root, public, enabled):
         return f'''location = {prefix} {{ return 308 {prefix}/; }}
         location {prefix}/ {{
             client_max_body_size {'8m' if app == 'cableplan' else '0'};
-            proxy_pass {upstream};
+            proxy_pass {upstream}{'/' if APPS[app].get('strip_prefix') else ''};
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-Proto https;
             proxy_set_header X-Forwarded-For $remote_addr;

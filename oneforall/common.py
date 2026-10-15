@@ -11,6 +11,9 @@ VAR = Path('/var/lib/oneforall')
 OPT = Path('/opt/oneforall')
 BACKUPS = Path('/var/backups/oneforall')
 APPS = json.loads((ROOT / 'config/apps.json').read_text())
+# Independently deployed local applications (DocTrad2 integration v1)
+from external_apps import extend_catalog, extend_state
+APPS = extend_catalog(APPS)
 
 
 def run(*args, capture=False, input=None, env=None):
@@ -71,11 +74,11 @@ def validate_site(c):
 
 
 def state():
-    return read_json(VAR / 'state.json', {})
+    return extend_state(read_json(VAR / 'state.json', {}))
 
 
 def services(app):
-    return ['oneforall-' + app + '-' + name for name in APPS[app]['services']]
+    return APPS[app].get('systemd_services') or ['oneforall-' + app + '-' + name for name in APPS[app]['services']]
 
 
 def user(app):
